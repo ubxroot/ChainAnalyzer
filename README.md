@@ -40,10 +40,12 @@ chmod +x install_and_run.sh
 
 ## Manual Setup
 
+```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 python3 ChainAnalyzer.py trace --currency ethereum 0x742d35Cc6634C0532925a3b844Bc454e4438f44e
+```
 
 ## 🧪 Example Usage
 
