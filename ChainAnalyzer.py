@@ -8,6 +8,16 @@ from utils.config import load_blacklist
 
 app = typer.Typer(help="🔍 ChainAnalyzer - Crypto Transaction Tracer for Forensics")
 
+ASCII_BANNER = r"""
+[bold red]
+██    ██ ██████  ██   ██ ██████  ██████  ██████  ████████
+██    ██ ██   ██ ██   ██ ██   ██ ██   ██ ██   ██    ██   
+██    ██ ██████  ███████ ██████  ██████  ██   ██    ██   
+██    ██ ██      ██   ██ ██   ██ ██   ██ ██   ██    ██   
+ ██████  ██      ██   ██ ██████  ██████  ██████     ██    [bold white]ubxroot[/bold white]
+[/bold red]
+"""
+
 @app.command()
 def trace(
     currency: str = typer.Option(..., help="Currency to trace: bitcoin or ethereum"),
@@ -17,15 +27,16 @@ def trace(
     """
     Trace the transaction flow for a given crypto address.
     """
+    print(ASCII_BANNER)
     logger = setup_logger()
     print(f"\n[bold blue]ChainAnalyzer:[/bold blue] Tracing [green]{currency.upper()}[/green] address: [yellow]{address}[/yellow]\n")
 
-    blacklist = load_blacklist()
     if currency.lower() not in ["bitcoin", "ethereum"]:
         print("[red]❌ Unsupported currency. Please use 'bitcoin' or 'ethereum'.[/red]")
         raise typer.Exit()
 
     try:
+        blacklist = load_blacklist()
         result = trace_crypto(currency, address, max_hops, blacklist, logger)
         print("\n[bold green]✅ Trace Complete[/bold green]")
         print(f"\n[bold]Risk Score:[/bold] {result.get('risk_score', 'N/A')}")
@@ -35,4 +46,5 @@ def trace(
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":
+    print(ASCII_BANNER)
     app()
