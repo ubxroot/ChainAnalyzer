@@ -53,33 +53,21 @@ python3 ChainAnalyzer.py trace --currency ethereum 0x742d35Cc6634C0532925a3b844B
 # Trace an Ethereum wallet
 ./install_and_run.sh trace --currency ethereum 0x742d35Cc6634C0532925a3b844Bc454e4438f44e
 
-## 📁 Project Structure
-
-ChainAnalyzer/
-├── core/               # Main logic for tracing and blockchain handling
-├── utils/              # Logging and threat intelligence loaders
-├── data/               # Sample threat intel blacklists
-├── tests/              # Unit and functional tests
-├── ChainAnalyzer.py    # CLI entrypoint using Typer
-├── install_and_run.sh  # Quick install and run script
-├── requirements.txt    # Python dependencies
-└── README.md           # This file
-
 ## 🔐 Use Cases
-Cybercrime & fraud investigation
-SOC crypto wallet monitoring
-Threat Intelligence enrichment
-Blockchain-based ransomware tracing
-Law enforcement crypto analysis
+* Cybercrime & fraud investigation
+* SOC crypto wallet monitoring
+* Threat Intelligence enrichment
+* Blockchain-based ransomware tracing
+* Law enforcement crypto analysis
 
 ## 🛣️ Roadmap
-Graph-based visualization of address connections
-JSON and PDF forensic report generation
-Ethereum contract risk analysis
-Onion address & darknet wallet detection heuristics
+* Graph-based visualization of address connections
+* JSON and PDF forensic report generation
+* Ethereum contract risk analysis
+* Onion address & darknet wallet detection heuristics
 
 ## 🤝 Contributing
-Contributions are welcome! Fork this repo, create a branch, and submit a pull request.
+* Contributions are welcome! Fork this repo, create a branch, and submit a pull request.
 git clone https://github.com/ubxroot/ChainAnalyzer.git
 cd ChainAnalyzer
 
