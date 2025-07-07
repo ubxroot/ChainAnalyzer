@@ -45,17 +45,18 @@ git clone https://github.com/ubxroot/ChainAnalyzer.git
 cd ChainAnalyzer
 chmod +x ChainAnalyzer.py 
 ./ChainAnalyzer.py trace --currency bitcoin 1BoatSLRHDSgNYPLaweMVzG2LgBopQx7PZZ --verbose --max-hops 2
-
+```
 
 ## 💡 Usage
-
+```
 Trace a Bitcoin wallet with 3 hops
 ./ChainAnalyzer.py trace --currency bitcoin 1KFHE7w8BhaENAswwryaoccDb6qcT6DbYY --max-hops 3
-
+```
+```
 Trace an Ethereum wallet
 ./ChainAnalyzer.py trace --currency ethereum 0x742d35Cc6634C0532925a3b844Bc454e4438f44e
 
----
+```
 
 ## 📁 Directory Structure
 
