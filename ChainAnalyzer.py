@@ -1,55 +1,57 @@
-#!/usr/bin/env python3
+# ChainAnalyzer Main Entry Point (GitHub-ready)
+# Language: Python (primary), with hooks to external graphing/AI modules (multi-language capable)
 
 import typer
 import json
 from rich import print
 from core.tracer import trace_crypto
+from core.visualizer import visualize_flow
 from utils.logger import setup_logger
-from utils.config import load_blacklist
+from utils.config import load_config
+from utils.risk import assess_risk
+from utils.alerting import check_alerts
 
-app = typer.Typer(help="🔍 ChainAnalyzer - Crypto Transaction Tracer for Forensics")
+app = typer.Typer(help="\U0001F50D ChainAnalyzer - Advanced Multi-Blockchain Transaction Tracer")
 
 @app.command()
 def trace(
-    currency: str = typer.Option(..., help="Currency to trace: bitcoin or ethereum"),
+    currency: str = typer.Option(..., help="Currency (e.g., bitcoin, ethereum, solana, tron)"),
     address: str = typer.Argument(..., help="Wallet address to trace"),
-    max_hops: int = typer.Option(3, help="Maximum number of transaction hops to trace"),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
-    output_format: str = typer.Option("human", "--output", "-o", help="Output format: human or json")
+    max_hops: int = typer.Option(5, help="Maximum number of transaction hops to trace"),
+    realtime: bool = typer.Option(False, help="Enable real-time monitoring mode"),
+    output_format: str = typer.Option("human", help="Output format: human or json"),
+    visualize: bool = typer.Option(True, help="Visualize transaction flow graph")
 ):
     """
-    Trace the transaction flow for a given crypto address.
+    Comprehensive address tracing and analysis across multiple blockchains.
     """
-    logger = setup_logger(verbose)
-    logger.info(f"Trace started for {currency} address: {address} | Max hops: {max_hops}")
+    logger = setup_logger()
+    config = load_config()
 
     print(f"\n[bold blue]ChainAnalyzer:[/bold blue] Tracing [green]{currency.upper()}[/green] address: [yellow]{address}[/yellow]\n")
 
-    if currency.lower() not in ["bitcoin", "ethereum"]:
-        print("[red]❌ Unsupported currency. Please use 'bitcoin' or 'ethereum'.[/red]")
-        logger.error("Unsupported currency input.")
-        raise typer.Exit()
+    result = trace_crypto(currency, address, max_hops, logger, config)
+    risk_report = assess_risk(result, config)
+    alerts = check_alerts(risk_report, config)
 
-    try:
-        blacklist = load_blacklist()
-        result = trace_crypto(currency, address, max_hops, blacklist, logger)
+    output = {
+        "address": address,
+        "currency": currency,
+        "trace_result": result,
+        "risk_score": risk_report.get("score"),
+        "alerts": alerts,
+    }
 
-        logger.info("Trace completed successfully.")
+    if visualize:
+        visualize_flow(result)
 
-        if output_format.lower() == "json":
-            print(json.dumps(result, indent=2))
-        else:
-            print("\n[bold green]✅ Trace Complete[/bold green]")
-            print(f"\n[bold]Risk Score:[/bold] {result.get('risk_score', 'N/A')}")
-            print(f"[bold]Hops Traced:[/bold] {result.get('hops', 'N/A')}")
-            metadata = result.get("metadata")
-            if metadata:
-                print(f"[bold]Additional Info:[/bold] {metadata}")
-
-    except Exception as e:
-        print(f"[red]⚠️ Error:[/red] {e}")
-        logger.exception("An error occurred during tracing.")
-        raise typer.Exit(code=1)
+    if output_format == "json":
+        print(json.dumps(output, indent=2))
+    else:
+        print("\n[bold green]\u2705 Trace Complete[/bold green]")
+        print(f"[bold]Risk Score:[/bold] {risk_report.get('score')}")
+        if alerts:
+            print(f"[red]\u26a0\ufe0f Alerts:[/red] {alerts}")
 
 if __name__ == "__main__":
     app()
