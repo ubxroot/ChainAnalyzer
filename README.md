@@ -43,34 +43,17 @@
 ```
 git clone https://github.com/ubxroot/ChainAnalyzer.git
 cd ChainAnalyzer
-chmod +x install_and_run.sh
-./install_and_run.sh trace --currency bitcoin 1KFHE7w8BhaENAswwryaoccDb6qcT6DbYY
-```
+chmod +x ChainAnalyzer.py 
+./ChainAnalyzer.py trace --currency bitcoin 1BoatSLRHDSgNYPLaweMVzG2LgBopQx7PZZ --verbose --max-hops 2
 
-
-### Manual Setup
-
-```
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python3 ChainAnalyzer.py trace --currency ethereum 0x742d35Cc6634C0532925a3b844Bc454e4438f44e
-```
-
-
----
 
 ## 💡 Usage
 
 Trace a Bitcoin wallet with 3 hops
-python ChainAnalyzer.py trace --currency bitcoin 1KFHE7w8BhaENAswwryaoccDb6qcT6DbYY --max-hops 3
+./ChainAnalyzer.py trace --currency bitcoin 1KFHE7w8BhaENAswwryaoccDb6qcT6DbYY --max-hops 3
 
 Trace an Ethereum wallet
-python ChainAnalyzer.py trace --currency ethereum 0x742d35Cc6634C0532925a3b844Bc454e4438f44e
-
-Use the install_and_run.sh helper
-./install_and_run.sh trace --currency bitcoin <wallet_address>
-
+./ChainAnalyzer.py trace --currency ethereum 0x742d35Cc6634C0532925a3b844Bc454e4438f44e
 
 ---
 
