@@ -90,5 +90,13 @@ def trace(
         logger.error(f"Error during trace: {e}", exc_info=True)
         sys.exit(1) # Use sys.exit for clean exit in direct execution
 
+# --- Banner Function ---
+def show_banner():
+    """Displays a stylized banner for the ChainAnalyzer tool."""
+    banner = pyfiglet.figlet_format("UBXROOT", font="slant")
+    console.print(f"[bright_cyan]{banner}[/bright_cyan]")
+    console.print("[bright_yellow]Log Analyzer – Blue Team ChainAnalyzer v1.0[/bright_yellow]\n")
+# --- Entry point for the command-line application ---
 if __name__ == "__main__":
+    show_banner() # Display the banner when the script starts
     app()
