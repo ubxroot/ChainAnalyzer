@@ -17,64 +17,71 @@ def visualize_flow(trace_result: List[Dict[str, Any]], console: Console):
 
     console.print("\n[bold blue]📊 Transaction Flow Visualization (Textual)[/bold blue]")
     
-    # Create a tree structure to represent the flow
-    # We'll try to build a simple tree based on 'from' and 'to' addresses
-    # This is a simplified representation and might not capture complex branching perfectly.
+    # Create a dictionary to hold nodes for the graph
+    nodes = {} # {address: Tree_Node_Object}
+    edges = set() # To prevent duplicate edges
 
-    # Map addresses to their transactions
-    address_tx_map = {}
+    # First pass: Create all unique address nodes
     for tx in trace_result:
-        txid = tx.get("txid", "UNKNOWN_TX")
         from_addr = tx.get("from_address", "N/A")
         to_addr = tx.get("to_address", "N/A")
-        amount = tx.get("amount", "N/A")
-        currency = tx.get("currency", "BTC") # Assuming BTC for now, or pass from main
-        depth = tx.get("depth", 0)
 
-        tx_description = f"TX: [cyan]{txid[:8]}...[/cyan] | [blue]{from_addr[:8]}...[/blue] -> [yellow]{to_addr[:8]}...[/yellow] | [green]{amount} {currency}[/green] (Depth: {depth})"
-        
-        if from_addr not in address_tx_map:
-            address_tx_map[from_addr] = []
-        address_tx_map[from_addr].append(tx_description)
+        if from_addr != "N/A" and from_addr not in nodes:
+            nodes[from_addr] = Tree(f"[blue]{from_addr[:10]}...[/blue]")
+        if to_addr != "N/A" and to_addr not in nodes:
+            nodes[to_addr] = Tree(f"[yellow]{to_addr[:10]}...[/yellow]")
 
-        if to_addr not in address_tx_map:
-            address_tx_map[to_addr] = []
-        # No need to add to_addr's transactions here, they will be processed when 'to_addr' becomes 'current_address'
+    # Second pass: Connect nodes with transactions as branches
+    # This approach assumes a somewhat linear flow for better tree representation.
+    # For complex, highly branched graphs, a true graph library (like networkx + graphviz) is needed.
 
-    # Find the initial address (or a common starting point for the tree)
-    # This is a heuristic and might need refinement for complex graphs
-    root_address = trace_result[0].get("from_address") if trace_result else "Unknown Start"
-    if not root_address:
-        for tx in trace_result:
-            if tx.get("from_address"):
-                root_address = tx["from_address"]
-                break
+    # Find potential root addresses (addresses that are primarily 'from' addresses and not 'to' addresses in other transactions)
+    all_from_addresses = {tx.get("from_address") for tx in trace_result if tx.get("from_address") != "N/A"}
+    all_to_addresses = {tx.get("to_address") for tx in trace_result if tx.get("to_address") != "N/A"}
+    
+    root_addresses = all_from_addresses - all_to_addresses
+    if not root_addresses and trace_result: # Fallback if no clear root (e.g., circular transactions)
+        root_addresses = {trace_result[0].get("from_address")}
 
-    if not root_address:
+    if not root_addresses:
         console.print("[dim]Could not determine a clear starting point for visualization.[/dim]")
         return
 
-    tree = Tree(f"[bold white]Root Address:[/bold white] [blue]{root_address}[/blue]")
+    # Build the tree from each root
+    for root_addr in sorted(list(root_addresses)):
+        if root_addr == "N/A": continue # Skip N/A as a root
 
-    # Simple recursive function to add nodes to the tree
-    def add_to_tree(current_node: Tree, addr: str, current_depth: int):
-        if current_depth > 5: # Limit tree depth for display
-            return
+        root_tree = Tree(f"[bold white]Starting Address:[/bold white] [blue]{root_addr}[/blue]")
         
-        # Add transactions originating from this address
-        for tx in trace_result:
-            if tx.get("from_address") == addr:
-                tx_id_short = tx.get("txid", "N/A")[:8]
-                amount = tx.get("amount", "N/A")
-                to_addr_short = tx.get("to_address", "N/A")[:8]
-                tx_node = current_node.add(f"[green]TX {tx_id_short}...[/green] ([white]{amount}[/white]) to [yellow]{to_addr_short}...[/yellow] (Depth: {tx.get('depth')})")
-                
-                # Recursively add the 'to' address as a child for further transactions
-                if tx.get("to_address") and tx.get("to_address") != addr:
-                    add_to_tree(tx_node, tx["to_address"], current_depth + 1)
+        # Use a queue for BFS-like traversal to build the tree
+        q = deque([(root_tree, root_addr, 0)]) # (parent_node, current_address, current_depth)
+        
+        visited_nodes_for_tree = set() # To prevent infinite loops in cyclic graphs for tree display
+        visited_nodes_for_tree.add(root_addr)
 
-    add_to_tree(tree, root_address, 0)
-    console.print(tree)
+        while q:
+            parent_node, current_addr_in_tree, current_depth = q.popleft()
 
-    console.print("[dim]Note: This is a simplified textual visualization. For interactive graphs, consider integrating with tools like Graphviz or D3.js.[/dim]")
+            if current_depth >= 5: # Limit visual depth to avoid overly large trees
+                parent_node.add("[dim]... (max depth reached)[/dim]")
+                continue
+
+            # Find transactions where current_addr_in_tree is the 'from' address
+            for tx in trace_result:
+                if tx.get("from_address") == current_addr_in_tree:
+                    txid_short = tx.get("txid", "N/A")[:8]
+                    amount = tx.get("amount", "N/A")
+                    currency = tx.get("currency", "N/A")
+                    to_addr = tx.get("to_address", "N/A")
+                    
+                    tx_node_label = f"[green]TX {txid_short}...[/green] ([white]{amount} {currency}[/white]) to [yellow]{to_addr[:10]}...[/yellow] (Depth: {tx.get('depth')})"
+                    tx_node = parent_node.add(tx_node_label)
+                    
+                    if to_addr != "N/A" and to_addr not in visited_nodes_for_tree:
+                        visited_nodes_for_tree.add(to_addr)
+                        q.append((tx_node, to_addr, current_depth + 1))
+        
+        console.print(root_tree)
+
+    console.print("[dim]Note: This is a simplified textual visualization. For interactive graphs, consider integrating with external tools like Graphviz (requires 'graphviz' package) or web-based libraries (D3.js, vis.js).[/dim]")
 
