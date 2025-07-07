@@ -2,5 +2,3 @@ typer
 rich
 requests
 pyfiglet
-# No new explicit requirements for the basic versions of utils modules.
-# If you implement advanced visualization (e.g., Graphviz), you'd add 'graphviz' here.
