@@ -1,8 +1,6 @@
-typer[all]==0.12.3
-rich==13.7.1
-web3==6.18.0
-requests==2.31.0
-networkx==3.3
-matplotlib==3.8.4
-blockcypher==1.0.1
-python-dotenv==1.0.1
+typer
+rich
+requests
+pyfiglet
+# No new explicit requirements for the basic versions of utils modules.
+# If you implement advanced visualization (e.g., Graphviz), you'd add 'graphviz' here.
