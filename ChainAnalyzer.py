@@ -7,6 +7,7 @@ import typer
 import json
 from rich import print
 from rich.console import Console # Import Console for use with trace_crypto and general output
+from rich.text import Text # <--- ADDED: Import Text class from rich
 import sys # For clean exit
 
 # Import core and utils modules
