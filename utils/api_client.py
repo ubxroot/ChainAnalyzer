@@ -2,11 +2,12 @@
 API Client Module
 =================
 
-Handles API requests to various blockchain services:
+Handles API requests to various blockchain services using ONLY FREE APIs:
 - Rate limiting
 - Error handling
 - Retry logic
 - Response caching
+- Fallback endpoints
 """
 
 import asyncio
@@ -40,12 +41,10 @@ class APIResponse:
     cached: bool = False
 
 class APIClient:
-    """Advanced API client for blockchain services."""
+    """Advanced API client for blockchain services using only free APIs."""
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.api_keys = config.get("api_keys", {})
-        self.rate_limits = config.get("rate_limits", {})
         self.session = None
         self.request_history = []
         self.cache = {}
@@ -90,10 +89,10 @@ class APIClient:
                     cached=True
                 )
         
-        # Make request
+        # Make request with fallback endpoints
         start_time = time.time()
         try:
-            response = await self._make_request(service, endpoint, params, headers, method, timeout)
+            response = await self._make_request_with_fallback(service, endpoint, params, headers, method, timeout)
             
             # Cache successful responses
             if response.status_code == 200 and use_cache:
@@ -111,29 +110,35 @@ class APIClient:
             logger.error(f"API request failed for {service}:{endpoint}: {e}")
             raise
     
-    async def _make_request(self, service: str, endpoint: str,
-                          params: Optional[Dict], headers: Optional[Dict],
-                          method: str, timeout: int) -> APIResponse:
-        """Make the actual HTTP request."""
+    async def _make_request_with_fallback(self, service: str, endpoint: str,
+                                        params: Optional[Dict], headers: Optional[Dict],
+                                        method: str, timeout: int) -> APIResponse:
+        """Make request with fallback to alternative endpoints."""
         
         # Get service configuration
         service_config = self._get_service_config(service)
-        base_url = service_config.get("base_url", "")
-        api_key = self.api_keys.get(service, "")
+        endpoints = service_config.get("api_endpoints", [])
         
-        # Build URL
-        url = f"{base_url}{endpoint}"
+        last_error = None
         
-        # Add API key to params or headers
-        if api_key:
-            if service_config.get("api_key_in_params", True):
-                if params is None:
-                    params = {}
-                params[service_config.get("api_key_param", "apikey")] = api_key
-            else:
-                if headers is None:
-                    headers = {}
-                headers[service_config.get("api_key_header", "Authorization")] = f"Bearer {api_key}"
+        for base_url in endpoints:
+            try:
+                url = f"{base_url}{endpoint}"
+                response = await self._make_single_request(url, params, headers, method, timeout)
+                if response.status_code < 500:  # Don't retry on client errors
+                    return response
+                last_error = f"Server error from {base_url}: {response.status_code}"
+            except Exception as e:
+                last_error = f"Error with {base_url}: {e}"
+                logger.debug(f"Failed to get data from {base_url}: {e}")
+                continue
+        
+        # If all endpoints failed, raise the last error
+        raise Exception(f"All endpoints failed for {service}: {last_error}")
+    
+    async def _make_single_request(self, url: str, params: Optional[Dict],
+                                 headers: Optional[Dict], method: str, timeout: int) -> APIResponse:
+        """Make a single HTTP request."""
         
         # Set default headers
         if headers is None:
@@ -155,7 +160,7 @@ class APIClient:
             request_time = time.time() - start_time
             
             # Log request
-            self._log_request(service, endpoint, response.status, request_time)
+            self._log_request(url, response.status, request_time)
             
             return APIResponse(
                 status_code=response.status,
@@ -165,54 +170,71 @@ class APIClient:
             )
             
         except asyncio.TimeoutError:
-            logger.error(f"Request timeout for {service}:{endpoint}")
+            logger.error(f"Request timeout for {url}")
             raise
         except Exception as e:
-            logger.error(f"Request failed for {service}:{endpoint}: {e}")
+            logger.error(f"Request failed for {url}: {e}")
             raise
     
     def _get_service_config(self, service: str) -> Dict[str, Any]:
         """Get configuration for a specific service."""
         service_configs = {
-            "etherscan": {
-                "base_url": "https://api.etherscan.io/api",
-                "api_key_in_params": True,
-                "api_key_param": "apikey",
-                "rate_limit": 5,  # requests per second
-                "rate_limit_window": 1
+            "bitcoin": {
+                "api_endpoints": [
+                    "https://blockstream.info/api",
+                    "https://mempool.space/api"
+                ],
+                "rate_limit": 60,  # requests per second
+                "rate_limit_window": 1,
+                "free": True
             },
-            "polygonscan": {
-                "base_url": "https://api.polygonscan.com/api",
-                "api_key_in_params": True,
-                "api_key_param": "apikey",
+            "ethereum": {
+                "api_endpoints": [
+                    "https://api.etherscan.io/api",
+                    "https://api.ethplorer.io"
+                ],
                 "rate_limit": 5,
-                "rate_limit_window": 1
-            },
-            "bscscan": {
-                "base_url": "https://api.bscscan.com/api",
-                "api_key_in_params": True,
-                "api_key_param": "apikey",
-                "rate_limit": 5,
-                "rate_limit_window": 1
-            },
-            "trongrid": {
-                "base_url": "https://api.trongrid.io",
-                "api_key_in_params": False,
-                "api_key_header": "TRON-PRO-API-KEY",
-                "rate_limit": 20,
-                "rate_limit_window": 1
-            },
-            "blockstream": {
-                "base_url": "https://blockstream.info/api",
-                "api_key_in_params": False,
-                "rate_limit": 60,
-                "rate_limit_window": 1
+                "rate_limit_window": 1,
+                "free": True
             },
             "solana": {
-                "base_url": "https://api.mainnet-beta.solana.com",
-                "api_key_in_params": False,
+                "api_endpoints": [
+                    "https://api.mainnet-beta.solana.com",
+                    "https://solana-api.projectserum.com",
+                    "https://rpc.ankr.com/solana"
+                ],
                 "rate_limit": 100,
-                "rate_limit_window": 1
+                "rate_limit_window": 1,
+                "free": True
+            },
+            "tron": {
+                "api_endpoints": [
+                    "https://api.trongrid.io",
+                    "https://api.shasta.trongrid.io"
+                ],
+                "rate_limit": 20,
+                "rate_limit_window": 1,
+                "free": True
+            },
+            "polygon": {
+                "api_endpoints": [
+                    "https://polygon-rpc.com",
+                    "https://rpc-mainnet.maticvigil.com",
+                    "https://rpc-mainnet.matic.network"
+                ],
+                "rate_limit": 30,
+                "rate_limit_window": 1,
+                "free": True
+            },
+            "bsc": {
+                "api_endpoints": [
+                    "https://bsc-dataseed.binance.org",
+                    "https://bsc-dataseed1.defibit.io",
+                    "https://bsc-dataseed1.ninicoin.io"
+                ],
+                "rate_limit": 30,
+                "rate_limit_window": 1,
+                "free": True
             }
         }
         
@@ -266,11 +288,10 @@ class APIClient:
         
         return "|".join(key_parts)
     
-    def _log_request(self, service: str, endpoint: str, status_code: int, request_time: float):
+    def _log_request(self, url: str, status_code: int, request_time: float):
         """Log API request details."""
         log_entry = {
-            "service": service,
-            "endpoint": endpoint,
+            "url": url,
             "status_code": status_code,
             "request_time": request_time,
             "timestamp": datetime.now().isoformat()
@@ -284,75 +305,95 @@ class APIClient:
         
         # Log based on status code
         if status_code >= 400:
-            logger.warning(f"API request failed: {service}:{endpoint} - {status_code}")
+            logger.warning(f"API request failed: {url} - {status_code}")
         else:
-            logger.debug(f"API request: {service}:{endpoint} - {status_code} ({request_time:.2f}s)")
+            logger.debug(f"API request: {url} - {status_code} ({request_time:.2f}s)")
     
     async def get_ethereum_transactions(self, address: str, start_block: int = 0, 
                                       end_block: int = 99999999) -> List[Dict]:
-        """Get Ethereum transactions for an address."""
+        """Get Ethereum transactions for an address using free endpoints."""
+        # Try Etherscan free tier first
         params = {
             "module": "account",
             "action": "txlist",
             "address": address,
             "startblock": start_block,
             "endblock": end_block,
-            "sort": "desc"
+            "sort": "desc",
+            "apikey": "YourApiKeyToken"  # Free tier key
         }
         
-        response = await self.request("etherscan", "", params=params)
+        try:
+            response = await self.request("ethereum", "", params=params)
+            
+            if response.status_code == 200 and response.data.get("status") == "1":
+                return response.data.get("result", [])
+            else:
+                logger.warning(f"Etherscan failed, trying Ethplorer")
+                # Fallback to Ethplorer
+                ethplorer_url = f"https://api.ethplorer.io/getAddressHistory/{address}?apiKey=freekey"
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(ethplorer_url) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            return data.get("operations", [])
         
-        if response.status_code == 200 and response.data.get("status") == "1":
-            return response.data.get("result", [])
-        else:
-            logger.error(f"Failed to get Ethereum transactions: {response.data}")
-            return []
+        except Exception as e:
+            logger.error(f"Failed to get Ethereum transactions: {e}")
+        
+        return []
     
     async def get_bitcoin_transactions(self, address: str) -> List[Dict]:
-        """Get Bitcoin transactions for an address."""
-        endpoint = f"/address/{address}"
-        response = await self.request("blockstream", endpoint)
+        """Get Bitcoin transactions for an address using Blockstream API."""
+        try:
+            response = await self.request("bitcoin", f"/address/{address}/txs")
+            
+            if response.status_code == 200:
+                return response.data
+            else:
+                logger.error(f"Failed to get Bitcoin transactions: {response.data}")
         
-        if response.status_code == 200:
-            return response.data.get("chain_stats", {}).get("tx_count", [])
-        else:
-            logger.error(f"Failed to get Bitcoin transactions: {response.data}")
-            return []
+        except Exception as e:
+            logger.error(f"Failed to get Bitcoin transactions: {e}")
+        
+        return []
     
     async def get_solana_transactions(self, address: str, limit: int = 100) -> List[Dict]:
-        """Get Solana transactions for an address."""
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "getSignaturesForAddress",
-            "params": [address, {"limit": limit}]
-        }
+        """Get Solana transactions for an address using public RPC."""
+        try:
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getSignaturesForAddress",
+                "params": [address, {"limit": limit}]
+            }
+            
+            response = await self.request("solana", "", method="POST", params=payload)
+            
+            if response.status_code == 200:
+                return response.data.get("result", [])
+            else:
+                logger.error(f"Failed to get Solana transactions: {response.data}")
         
-        response = await self.request("solana", "", method="POST", params=payload)
+        except Exception as e:
+            logger.error(f"Failed to get Solana transactions: {e}")
         
-        if response.status_code == 200:
-            return response.data.get("result", [])
-        else:
-            logger.error(f"Failed to get Solana transactions: {response.data}")
-            return []
+        return []
     
     async def get_tron_transactions(self, address: str) -> List[Dict]:
-        """Get Tron transactions for an address."""
-        endpoint = f"/v1/accounts/{address}/transactions"
-        headers = {}
+        """Get Tron transactions for an address using public API."""
+        try:
+            response = await self.request("tron", f"/v1/accounts/{address}/transactions")
+            
+            if response.status_code == 200:
+                return response.data.get("data", [])
+            else:
+                logger.error(f"Failed to get Tron transactions: {response.data}")
         
-        # Add API key if available
-        api_key = self.api_keys.get("trongrid")
-        if api_key:
-            headers["TRON-PRO-API-KEY"] = api_key
+        except Exception as e:
+            logger.error(f"Failed to get Tron transactions: {e}")
         
-        response = await self.request("trongrid", endpoint, headers=headers)
-        
-        if response.status_code == 200:
-            return response.data.get("data", [])
-        else:
-            logger.error(f"Failed to get Tron transactions: {response.data}")
-            return []
+        return []
     
     def get_request_statistics(self) -> Dict[str, Any]:
         """Get API request statistics."""
@@ -368,7 +409,14 @@ class APIClient:
         # Group by service
         service_stats = {}
         for request in self.request_history:
-            service = request["service"]
+            # Extract service from URL
+            url = request["url"]
+            service = "unknown"
+            for s in ["bitcoin", "ethereum", "solana", "tron", "polygon", "bsc"]:
+                if s in url:
+                    service = s
+                    break
+            
             if service not in service_stats:
                 service_stats[service] = {
                     "total_requests": 0,
@@ -385,7 +433,7 @@ class APIClient:
         
         # Calculate averages for each service
         for service, stats in service_stats.items():
-            service_requests = [r for r in self.request_history if r["service"] == service]
+            service_requests = [r for r in self.request_history if service in r["url"]]
             if service_requests:
                 stats["avg_request_time"] = sum(r["request_time"] for r in service_requests) / len(service_requests)
         
@@ -395,7 +443,8 @@ class APIClient:
             "failed_requests": failed_requests,
             "success_rate": successful_requests / total_requests if total_requests > 0 else 0,
             "avg_request_time": avg_request_time,
-            "service_statistics": service_stats
+            "service_statistics": service_stats,
+            "free_apis_only": True
         }
     
     def clear_cache(self):
@@ -408,5 +457,6 @@ class APIClient:
         return {
             "cache_size": len(self.cache),
             "cache_ttl": self.cache_ttl,
-            "cache_keys": list(self.cache.keys())
-        } 
+            "cache_keys": list(self.cache.keys()),
+            "free_apis_only": True
+        }
