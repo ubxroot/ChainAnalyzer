@@ -1,13 +1,13 @@
 """
-Report Generator Module
-=======================
+Reporter Module
+===============
 
-Generates comprehensive reports for SOC/DFIR teams:
-- Executive summaries
-- Technical analysis reports
-- Risk assessment reports
-- Threat intelligence reports
-- Compliance reports
+Provides comprehensive reporting capabilities:
+- Report generation in multiple formats
+- Summary reports
+- Detailed analysis reports
+- Export functionality
+- Customizable templates
 """
 
 import json
@@ -19,371 +19,425 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-class ReportGenerator:
-    """Advanced report generation for blockchain analysis."""
+class Reporter:
+    """Advanced reporting for blockchain analysis results."""
     
-    def __init__(self):
-        self.report_templates = {
-            "executive": self._executive_template,
-            "technical": self._technical_template,
-            "risk": self._risk_template,
-            "threat": self._threat_template,
-            "compliance": self._compliance_template
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.report_config = config.get("export", {})
+        self.output_dir = Path(self.report_config.get("output_directory", "reports"))
+        self.output_dir.mkdir(exist_ok=True)
+    
+    def generate_summary_report(self, analysis_data: Dict[str, Any], 
+                              format: str = "json") -> Dict[str, Any]:
+        """Generate a summary report of analysis results."""
+        
+        summary = {
+            "report_type": "summary",
+            "timestamp": datetime.now().isoformat(),
+            "analysis_summary": {
+                "address": analysis_data.get("address", ""),
+                "currency": analysis_data.get("currency", ""),
+                "total_transactions": len(analysis_data.get("transactions", [])),
+                "total_addresses": len(analysis_data.get("addresses", [])),
+                "total_volume_usd": sum(tx.get("value_usd", 0) for tx in analysis_data.get("transactions", [])),
+                "analysis_duration": analysis_data.get("analysis_duration", 0),
+                "trace_depth": analysis_data.get("trace_depth", 0),
+                "max_hops": analysis_data.get("max_hops", 0)
+            },
+            "risk_assessment": {
+                "overall_risk_level": "low",
+                "risk_score": 0.0,
+                "risk_factors": []
+            },
+            "threat_intelligence": {
+                "blacklist_status": "clean",
+                "threat_score": 0.0,
+                "suspicious_patterns": []
+            },
+            "key_findings": [],
+            "recommendations": []
         }
+        
+        # Add risk assessment if available
+        if "risk_analysis" in analysis_data:
+            risk_data = analysis_data["risk_analysis"]
+            summary["risk_assessment"].update({
+                "overall_risk_level": risk_data.get("risk_level", "low"),
+                "risk_score": risk_data.get("risk_score", 0.0),
+                "risk_factors": risk_data.get("risk_factors", [])
+            })
+        
+        # Add threat intelligence if available
+        if "threat_intelligence" in analysis_data:
+            threat_data = analysis_data["threat_intelligence"]
+            summary["threat_intelligence"].update({
+                "blacklist_status": threat_data.get("blacklist_status", "clean"),
+                "threat_score": threat_data.get("threat_score", 0.0),
+                "suspicious_patterns": threat_data.get("suspicious_patterns", [])
+            })
+        
+        # Generate key findings
+        summary["key_findings"] = self._generate_key_findings(analysis_data)
+        
+        # Generate recommendations
+        summary["recommendations"] = self._generate_recommendations(summary)
+        
+        return summary
     
-    def generate_report(self, analysis_data: Dict, report_type: str = "comprehensive") -> str:
-        """Generate a comprehensive analysis report."""
-        try:
-            if report_type == "comprehensive":
-                return self._generate_comprehensive_report(analysis_data)
-            elif report_type in self.report_templates:
-                return self.report_templates[report_type](analysis_data)
-            else:
-                raise ValueError(f"Unknown report type: {report_type}")
-                
-        except Exception as e:
-            logger.error(f"Error generating report: {e}")
-            return f"Error generating report: {e}"
+    def generate_detailed_report(self, analysis_data: Dict[str, Any], 
+                               format: str = "json") -> Dict[str, Any]:
+        """Generate a detailed report with comprehensive analysis."""
+        
+        detailed_report = {
+            "report_type": "detailed",
+            "timestamp": datetime.now().isoformat(),
+            "executive_summary": self._generate_executive_summary(analysis_data),
+            "technical_analysis": self._generate_technical_analysis(analysis_data),
+            "risk_assessment": self._generate_detailed_risk_assessment(analysis_data),
+            "threat_intelligence": self._generate_detailed_threat_intelligence(analysis_data),
+            "transaction_analysis": self._generate_transaction_analysis(analysis_data),
+            "network_analysis": self._generate_network_analysis(analysis_data),
+            "visualization_data": self._generate_visualization_data(analysis_data),
+            "appendix": self._generate_appendix(analysis_data)
+        }
+        
+        return detailed_report
     
-    def _generate_comprehensive_report(self, analysis_data: Dict) -> str:
-        """Generate a comprehensive report combining all analysis aspects."""
-        report = []
+    def export_report(self, report_data: Dict[str, Any], 
+                     format: str = "json", 
+                     filename: Optional[str] = None) -> str:
+        """Export report in specified format."""
         
-        # Executive Summary
-        report.append(self._generate_executive_summary(analysis_data))
-        report.append("\n" + "="*80 + "\n")
-        
-        # Technical Analysis
-        report.append(self._generate_technical_analysis(analysis_data))
-        report.append("\n" + "="*80 + "\n")
-        
-        # Risk Assessment
-        if analysis_data.get("risk_data"):
-            report.append(self._generate_risk_assessment(analysis_data["risk_data"]))
-            report.append("\n" + "="*80 + "\n")
-        
-        # Threat Intelligence
-        if analysis_data.get("threat_data"):
-            report.append(self._generate_threat_intelligence(analysis_data["threat_data"]))
-            report.append("\n" + "="*80 + "\n")
-        
-        # Recommendations
-        report.append(self._generate_recommendations(analysis_data))
-        
-        return "\n".join(report)
-    
-    def _generate_executive_summary(self, analysis_data: Dict) -> str:
-        """Generate executive summary section."""
-        address = analysis_data.get("address", "Unknown")
-        currency = analysis_data.get("currency", "Unknown")
-        trace_result = analysis_data.get("trace_result", {})
-        risk_data = analysis_data.get("risk_data", {})
-        threat_data = analysis_data.get("threat_data", {})
-        
-        summary = []
-        summary.append("EXECUTIVE SUMMARY")
-        summary.append("=" * 50)
-        summary.append(f"Analysis Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        summary.append(f"Address: {address}")
-        summary.append(f"Blockchain: {currency.upper()}")
-        summary.append("")
-        
-        # Key findings
-        summary.append("KEY FINDINGS:")
-        
-        # Transaction summary
-        if trace_result:
-            transactions = trace_result.get("transactions", [])
-            addresses = trace_result.get("addresses", [])
-            total_volume = trace_result.get("total_volume", 0)
-            
-            summary.append(f"• Total Transactions: {len(transactions)}")
-            summary.append(f"• Unique Addresses: {len(addresses)}")
-            summary.append(f"• Total Volume: ${total_volume:,.2f}")
-        
-        # Risk summary
-        if risk_data:
-            risk_score = risk_data.get("risk_score", 0)
-            risk_level = risk_data.get("risk_level", "Unknown")
-            summary.append(f"• Risk Score: {risk_score:.2f} ({risk_level})")
-        
-        # Threat summary
-        if threat_data:
-            threat_score = threat_data.get("threat_score", 0)
-            threat_level = threat_data.get("threat_level", "Unknown")
-            summary.append(f"• Threat Score: {threat_score:.2f} ({threat_level})")
-        
-        return "\n".join(summary)
-    
-    def _generate_technical_analysis(self, analysis_data: Dict) -> str:
-        """Generate technical analysis section."""
-        trace_result = analysis_data.get("trace_result", {})
-        
-        if not trace_result:
-            return "TECHNICAL ANALYSIS\nNo transaction data available for analysis."
-        
-        analysis = []
-        analysis.append("TECHNICAL ANALYSIS")
-        analysis.append("=" * 50)
-        
-        # Transaction details
-        transactions = trace_result.get("transactions", [])
-        addresses = trace_result.get("addresses", [])
-        
-        analysis.append(f"Transaction Analysis:")
-        analysis.append(f"• Total Transactions Analyzed: {len(transactions)}")
-        analysis.append(f"• Unique Addresses Involved: {len(addresses)}")
-        analysis.append(f"• Analysis Depth: {trace_result.get('trace_depth', 'N/A')} levels")
-        analysis.append(f"• Maximum Hops: {trace_result.get('max_hops', 'N/A')}")
-        analysis.append("")
-        
-        # Transaction patterns
-        if transactions:
-            analysis.append("Transaction Patterns:")
-            
-            # Volume analysis
-            values = [tx.get("value_usd", 0) for tx in transactions]
-            if values:
-                analysis.append(f"• Average Transaction Value: ${sum(values)/len(values):,.2f}")
-                analysis.append(f"• Largest Transaction: ${max(values):,.2f}")
-                analysis.append(f"• Smallest Transaction: ${min(values):,.2f}")
-            
-            # Timing analysis
-            timestamps = [tx.get("timestamp", 0) for tx in transactions if tx.get("timestamp")]
-            if timestamps:
-                from datetime import datetime
-                earliest = datetime.fromtimestamp(min(timestamps))
-                latest = datetime.fromtimestamp(max(timestamps))
-                analysis.append(f"• Analysis Period: {earliest.strftime('%Y-%m-%d')} to {latest.strftime('%Y-%m-%d')}")
-        
-        # Suspicious patterns
-        suspicious_patterns = trace_result.get("suspicious_patterns", [])
-        if suspicious_patterns:
-            analysis.append("")
-            analysis.append("Suspicious Patterns Detected:")
-            for pattern in suspicious_patterns:
-                analysis.append(f"• {pattern}")
-        
-        return "\n".join(analysis)
-    
-    def _generate_risk_assessment(self, risk_data: Dict) -> str:
-        """Generate risk assessment section."""
-        assessment = []
-        assessment.append("RISK ASSESSMENT")
-        assessment.append("=" * 50)
-        
-        risk_score = risk_data.get("risk_score", 0)
-        risk_level = risk_data.get("risk_level", "Unknown")
-        risk_factors = risk_data.get("risk_factors", [])
-        
-        assessment.append(f"Overall Risk Score: {risk_score:.2f}")
-        assessment.append(f"Risk Level: {risk_level}")
-        assessment.append("")
-        
-        if risk_factors:
-            assessment.append("Risk Factors Identified:")
-            for i, factor in enumerate(risk_factors[:10], 1):  # Top 10 factors
-                assessment.append(f"{i}. {factor.get('description', 'Unknown')}")
-                assessment.append(f"   Risk Score: {factor.get('risk_score', 0):.2f}")
-                assessment.append(f"   Type: {factor.get('type', 'Unknown')}")
-                assessment.append("")
-        
-        # Recommendations
-        recommendations = risk_data.get("recommendations", [])
-        if recommendations:
-            assessment.append("Risk Mitigation Recommendations:")
-            for rec in recommendations:
-                assessment.append(f"• {rec}")
-        
-        return "\n".join(assessment)
-    
-    def _generate_threat_intelligence(self, threat_data: Dict) -> str:
-        """Generate threat intelligence section."""
-        threat_intel = []
-        threat_intel.append("THREAT INTELLIGENCE ANALYSIS")
-        threat_intel.append("=" * 50)
-        
-        threat_score = threat_data.get("threat_score", 0)
-        threat_level = threat_data.get("threat_level", "Unknown")
-        blacklist_status = threat_data.get("blacklist_status", "Unknown")
-        
-        threat_intel.append(f"Threat Score: {threat_score:.2f}")
-        threat_intel.append(f"Threat Level: {threat_level}")
-        threat_intel.append(f"Blacklist Status: {blacklist_status}")
-        threat_intel.append("")
-        
-        # Blacklist details
-        blacklists = threat_data.get("blacklists", [])
-        if blacklists:
-            threat_intel.append("Blacklist Matches:")
-            for blacklist in blacklists:
-                threat_intel.append(f"• {blacklist.get('source', 'Unknown')}: {blacklist.get('reason', 'Unknown')}")
-            threat_intel.append("")
-        
-        # Suspicious indicators
-        suspicious_indicators = threat_data.get("suspicious_indicators", [])
-        if suspicious_indicators:
-            threat_intel.append("Suspicious Indicators:")
-            for indicator in suspicious_indicators:
-                threat_intel.append(f"• {indicator}")
-            threat_intel.append("")
-        
-        # Historical incidents
-        historical_incidents = threat_data.get("historical_incidents", [])
-        if historical_incidents:
-            threat_intel.append("Historical Incidents:")
-            for incident in historical_incidents:
-                threat_intel.append(f"• {incident}")
-            threat_intel.append("")
-        
-        # Alerts
-        alerts = threat_data.get("alerts", [])
-        if alerts:
-            threat_intel.append("Threat Alerts:")
-            for alert in alerts:
-                threat_intel.append(f"⚠️ {alert}")
-        
-        return "\n".join(threat_intel)
-    
-    def _generate_recommendations(self, analysis_data: Dict) -> str:
-        """Generate recommendations section."""
-        recommendations = []
-        recommendations.append("RECOMMENDATIONS")
-        recommendations.append("=" * 50)
-        
-        # Risk-based recommendations
-        risk_data = analysis_data.get("risk_data", {})
-        if risk_data:
-            risk_level = risk_data.get("risk_level", "Unknown")
-            risk_recommendations = risk_data.get("recommendations", [])
-            
-            if risk_level in ["HIGH", "CRITICAL"]:
-                recommendations.append("IMMEDIATE ACTIONS REQUIRED:")
-                recommendations.append("• Implement enhanced monitoring for this address")
-                recommendations.append("• Consider blocking transactions from this address")
-                recommendations.append("• Conduct immediate investigation")
-                recommendations.append("")
-            
-            if risk_recommendations:
-                recommendations.append("Risk Mitigation Actions:")
-                for rec in risk_recommendations:
-                    recommendations.append(f"• {rec}")
-                recommendations.append("")
-        
-        # Threat-based recommendations
-        threat_data = analysis_data.get("threat_data", {})
-        if threat_data:
-            threat_level = threat_data.get("threat_level", "Unknown")
-            
-            if threat_level in ["HIGH", "CRITICAL"]:
-                recommendations.append("Threat Response Actions:")
-                recommendations.append("• Add address to internal blacklist")
-                recommendations.append("• Alert security team")
-                recommendations.append("• Monitor for additional suspicious activity")
-                recommendations.append("")
-        
-        # General recommendations
-        recommendations.append("General Recommendations:")
-        recommendations.append("• Continue monitoring address for changes in behavior")
-        recommendations.append("• Update threat intelligence feeds regularly")
-        recommendations.append("• Document findings for future reference")
-        recommendations.append("• Share intelligence with relevant teams")
-        
-        return "\n".join(recommendations)
-    
-    def _executive_template(self, analysis_data: Dict) -> str:
-        """Executive summary template."""
-        return self._generate_executive_summary(analysis_data)
-    
-    def _technical_template(self, analysis_data: Dict) -> str:
-        """Technical analysis template."""
-        return self._generate_technical_analysis(analysis_data)
-    
-    def _risk_template(self, analysis_data: Dict) -> str:
-        """Risk assessment template."""
-        risk_data = analysis_data.get("risk_data", {})
-        return self._generate_risk_assessment(risk_data)
-    
-    def _threat_template(self, analysis_data: Dict) -> str:
-        """Threat intelligence template."""
-        threat_data = analysis_data.get("threat_data", {})
-        return self._generate_threat_intelligence(threat_data)
-    
-    def _compliance_template(self, analysis_data: Dict) -> str:
-        """Compliance report template."""
-        compliance = []
-        compliance.append("COMPLIANCE REPORT")
-        compliance.append("=" * 50)
-        compliance.append(f"Report Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        compliance.append(f"Address: {analysis_data.get('address', 'Unknown')}")
-        compliance.append(f"Blockchain: {analysis_data.get('currency', 'Unknown').upper()}")
-        compliance.append("")
-        
-        # Compliance checks
-        compliance.append("COMPLIANCE CHECKS:")
-        
-        risk_data = analysis_data.get("risk_data", {})
-        threat_data = analysis_data.get("threat_data", {})
-        
-        # Risk compliance
-        if risk_data:
-            risk_level = risk_data.get("risk_level", "Unknown")
-            if risk_level in ["HIGH", "CRITICAL"]:
-                compliance.append("❌ FAIL: High risk level detected")
-            else:
-                compliance.append("✅ PASS: Risk level acceptable")
-        
-        # Threat compliance
-        if threat_data:
-            threat_level = threat_data.get("threat_level", "Unknown")
-            if threat_level in ["HIGH", "CRITICAL"]:
-                compliance.append("❌ FAIL: High threat level detected")
-            else:
-                compliance.append("✅ PASS: Threat level acceptable")
-        
-        # Blacklist compliance
-        if threat_data:
-            blacklist_status = threat_data.get("blacklist_status", "Unknown")
-            if blacklist_status == "BLACKLISTED":
-                compliance.append("❌ FAIL: Address found in blacklists")
-            else:
-                compliance.append("✅ PASS: No blacklist matches")
-        
-        compliance.append("")
-        compliance.append("COMPLIANCE RECOMMENDATIONS:")
-        compliance.append("• Follow established due diligence procedures")
-        compliance.append("• Document all findings and decisions")
-        compliance.append("• Maintain audit trail of analysis")
-        compliance.append("• Regular review of compliance status")
-        
-        return "\n".join(compliance)
-    
-    def export_report(self, report_content: str, format: str = "txt", filename: str = None) -> str:
-        """Export report to file."""
         try:
             if not filename:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"chain_analyzer_report_{timestamp}.{format}"
+                address = report_data.get("analysis_summary", {}).get("address", "unknown")
+                filename = f"chainanalyzer_report_{address}_{timestamp}.{format}"
             
-            filepath = Path(filename)
+            filepath = self.output_dir / filename
             
-            if format.lower() == "txt":
+            if format.lower() == "json":
                 with open(filepath, 'w', encoding='utf-8') as f:
-                    f.write(report_content)
-            elif format.lower() == "json":
-                # Convert report to JSON format
-                report_data = {
-                    "report_content": report_content,
-                    "generated_at": datetime.now().isoformat(),
-                    "format": "text"
-                }
-                with open(filepath, 'w', encoding='utf-8') as f:
-                    json.dump(report_data, f, indent=2)
+                    json.dump(report_data, f, indent=2, default=str)
+            
+            elif format.lower() == "csv":
+                self._export_to_csv(report_data, filepath)
+            
+            elif format.lower() == "txt":
+                self._export_to_txt(report_data, filepath)
+            
             else:
-                raise ValueError(f"Unsupported format: {format}")
+                raise ValueError(f"Unsupported export format: {format}")
             
-            return str(filepath.absolute())
-            
+            logger.info(f"Report exported to: {filepath}")
+            return str(filepath)
+        
         except Exception as e:
             logger.error(f"Error exporting report: {e}")
-            return "" 
+            raise
+    
+    def _generate_key_findings(self, analysis_data: Dict[str, Any]) -> List[str]:
+        """Generate key findings from analysis data."""
+        
+        findings = []
+        
+        # Transaction volume findings
+        total_volume = sum(tx.get("value_usd", 0) for tx in analysis_data.get("transactions", []))
+        if total_volume > 1000000:
+            findings.append(f"High transaction volume: ${total_volume:,.2f}")
+        elif total_volume > 100000:
+            findings.append(f"Significant transaction volume: ${total_volume:,.2f}")
+        
+        # Transaction count findings
+        tx_count = len(analysis_data.get("transactions", []))
+        if tx_count > 100:
+            findings.append(f"High transaction frequency: {tx_count} transactions")
+        elif tx_count > 50:
+            findings.append(f"Moderate transaction frequency: {tx_count} transactions")
+        
+        # Risk findings
+        if "risk_analysis" in analysis_data:
+            risk_level = analysis_data["risk_analysis"].get("risk_level", "low")
+            if risk_level in ["high", "critical"]:
+                findings.append(f"High risk address: {risk_level.upper()} risk level")
+        
+        # Threat findings
+        if "threat_intelligence" in analysis_data:
+            threat_score = analysis_data["threat_intelligence"].get("threat_score", 0)
+            if threat_score > 0.7:
+                findings.append(f"High threat score: {threat_score:.2f}")
+        
+        # Address network findings
+        address_count = len(analysis_data.get("addresses", []))
+        if address_count > 50:
+            findings.append(f"Large address network: {address_count} connected addresses")
+        
+        if not findings:
+            findings.append("No significant findings detected")
+        
+        return findings
+    
+    def _generate_recommendations(self, summary: Dict[str, Any]) -> List[str]:
+        """Generate recommendations based on summary data."""
+        
+        recommendations = []
+        
+        risk_level = summary["risk_assessment"]["risk_level"]
+        threat_score = summary["threat_intelligence"]["threat_score"]
+        
+        if risk_level == "critical":
+            recommendations.append("IMMEDIATE ACTION REQUIRED: Address poses critical risk")
+            recommendations.append("Implement immediate blocking and monitoring")
+            recommendations.append("Report to relevant authorities")
+        elif risk_level == "high":
+            recommendations.append("HIGH RISK: Implement enhanced monitoring")
+            recommendations.append("Conduct additional due diligence")
+            recommendations.append("Consider blocking high-value transactions")
+        elif risk_level == "medium":
+            recommendations.append("MEDIUM RISK: Monitor transactions closely")
+            recommendations.append("Implement standard due diligence procedures")
+        else:
+            recommendations.append("LOW RISK: Standard monitoring procedures apply")
+        
+        if threat_score > 0.7:
+            recommendations.append("HIGH THREAT: Address associated with malicious activity")
+            recommendations.append("Implement threat intelligence monitoring")
+        
+        if summary["analysis_summary"]["total_volume_usd"] > 1000000:
+            recommendations.append("HIGH VOLUME: Consider enhanced reporting requirements")
+        
+        return recommendations
+    
+    def _generate_executive_summary(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate executive summary for detailed report."""
+        
+        return {
+            "overview": f"Analysis of {analysis_data.get('currency', 'unknown')} address {analysis_data.get('address', 'unknown')}",
+            "key_metrics": {
+                "total_transactions": len(analysis_data.get("transactions", [])),
+                "total_volume": sum(tx.get("value_usd", 0) for tx in analysis_data.get("transactions", [])),
+                "connected_addresses": len(analysis_data.get("addresses", [])),
+                "analysis_depth": analysis_data.get("trace_depth", 0)
+            },
+            "risk_overview": {
+                "level": analysis_data.get("risk_analysis", {}).get("risk_level", "low"),
+                "score": analysis_data.get("risk_analysis", {}).get("risk_score", 0.0)
+            },
+            "threat_overview": {
+                "status": analysis_data.get("threat_intelligence", {}).get("blacklist_status", "clean"),
+                "score": analysis_data.get("threat_intelligence", {}).get("threat_score", 0.0)
+            }
+        }
+    
+    def _generate_technical_analysis(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate technical analysis section."""
+        
+        return {
+            "analysis_parameters": {
+                "trace_depth": analysis_data.get("trace_depth", 0),
+                "max_hops": analysis_data.get("max_hops", 0),
+                "analysis_duration": analysis_data.get("analysis_duration", 0),
+                "currency": analysis_data.get("currency", "unknown")
+            },
+            "data_quality": {
+                "transaction_completeness": len(analysis_data.get("transactions", [])) > 0,
+                "address_coverage": len(analysis_data.get("addresses", [])) > 0,
+                "timestamp_availability": any(tx.get("timestamp") for tx in analysis_data.get("transactions", []))
+            },
+            "methodology": {
+                "tracing_method": "Multi-hop transaction tracing",
+                "risk_assessment": "Multi-factor risk scoring",
+                "threat_intelligence": "Multi-source blacklist checking"
+            }
+        }
+    
+    def _generate_detailed_risk_assessment(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate detailed risk assessment section."""
+        
+        risk_data = analysis_data.get("risk_analysis", {})
+        
+        return {
+            "overall_assessment": {
+                "risk_level": risk_data.get("risk_level", "low"),
+                "risk_score": risk_data.get("risk_score", 0.0),
+                "confidence": risk_data.get("confidence", 0.0)
+            },
+            "risk_factors": risk_data.get("risk_factors", []),
+            "risk_details": risk_data.get("risk_details", {}),
+            "recommendations": risk_data.get("recommendations", [])
+        }
+    
+    def _generate_detailed_threat_intelligence(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate detailed threat intelligence section."""
+        
+        threat_data = analysis_data.get("threat_intelligence", {})
+        
+        return {
+            "overall_assessment": {
+                "blacklist_status": threat_data.get("blacklist_status", "clean"),
+                "threat_score": threat_data.get("threat_score", 0.0),
+                "confidence": threat_data.get("confidence", 0.0)
+            },
+            "blacklist_matches": threat_data.get("blacklist_matches", []),
+            "suspicious_patterns": threat_data.get("suspicious_patterns", []),
+            "threat_indicators": threat_data.get("threat_indicators", []),
+            "recommendations": threat_data.get("recommendations", [])
+        }
+    
+    def _generate_transaction_analysis(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate transaction analysis section."""
+        
+        transactions = analysis_data.get("transactions", [])
+        
+        if not transactions:
+            return {"message": "No transactions found"}
+        
+        # Calculate statistics
+        volumes = [tx.get("value_usd", 0) for tx in transactions]
+        timestamps = [tx.get("timestamp", 0) for tx in transactions if tx.get("timestamp")]
+        
+        return {
+            "transaction_statistics": {
+                "total_count": len(transactions),
+                "total_volume": sum(volumes),
+                "average_volume": sum(volumes) / len(volumes) if volumes else 0,
+                "max_volume": max(volumes) if volumes else 0,
+                "min_volume": min(volumes) if volumes else 0
+            },
+            "temporal_analysis": {
+                "first_transaction": min(timestamps) if timestamps else None,
+                "last_transaction": max(timestamps) if timestamps else None,
+                "time_span_days": (max(timestamps) - min(timestamps)) / 86400 if len(timestamps) > 1 else 0
+            },
+            "sample_transactions": transactions[:10]  # First 10 transactions
+        }
+    
+    def _generate_network_analysis(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate network analysis section."""
+        
+        addresses = analysis_data.get("addresses", [])
+        relationships = analysis_data.get("relationships", {})
+        
+        return {
+            "network_statistics": {
+                "total_addresses": len(addresses),
+                "connected_addresses": len([addr for addr in addresses if addr != analysis_data.get("address", "")]),
+                "relationship_count": len(relationships.get("address_connections", {}))
+            },
+            "network_topology": {
+                "central_addresses": [],
+                "isolated_addresses": [],
+                "high_degree_addresses": []
+            },
+            "relationship_details": relationships
+        }
+    
+    def _generate_visualization_data(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate visualization data section."""
+        
+        return {
+            "available_visualizations": [
+                "transaction_flow",
+                "address_network", 
+                "risk_heatmap",
+                "timeline"
+            ],
+            "visualization_config": {
+                "interactive": True,
+                "export_formats": ["json", "csv", "png", "svg"]
+            }
+        }
+    
+    def _generate_appendix(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate appendix with additional data."""
+        
+        return {
+            "raw_data_summary": {
+                "transactions_count": len(analysis_data.get("transactions", [])),
+                "addresses_count": len(analysis_data.get("addresses", [])),
+                "analysis_timestamp": analysis_data.get("timestamp", ""),
+                "currency": analysis_data.get("currency", "")
+            },
+            "methodology_details": {
+                "tracing_algorithm": "Multi-hop depth-first search",
+                "risk_scoring": "Weighted multi-factor analysis",
+                "threat_intelligence": "Multi-source aggregation"
+            },
+            "data_sources": [
+                "Blockchain APIs (free tier)",
+                "Public threat intelligence feeds",
+                "Open-source blacklists"
+            ]
+        }
+    
+    def _export_to_csv(self, report_data: Dict[str, Any], filepath: Path):
+        """Export report data to CSV format."""
+        
+        with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            
+            # Write summary data
+            writer.writerow(["Report Type", "Summary Report"])
+            writer.writerow(["Timestamp", report_data.get("timestamp", "")])
+            writer.writerow([])
+            
+            # Write analysis summary
+            summary = report_data.get("analysis_summary", {})
+            writer.writerow(["Analysis Summary"])
+            writer.writerow(["Address", summary.get("address", "")])
+            writer.writerow(["Currency", summary.get("currency", "")])
+            writer.writerow(["Total Transactions", summary.get("total_transactions", 0)])
+            writer.writerow(["Total Volume USD", summary.get("total_volume_usd", 0)])
+            writer.writerow([])
+            
+            # Write risk assessment
+            risk = report_data.get("risk_assessment", {})
+            writer.writerow(["Risk Assessment"])
+            writer.writerow(["Risk Level", risk.get("overall_risk_level", "low")])
+            writer.writerow(["Risk Score", risk.get("risk_score", 0.0)])
+            writer.writerow([])
+            
+            # Write recommendations
+            writer.writerow(["Recommendations"])
+            for rec in report_data.get("recommendations", []):
+                writer.writerow([rec])
+    
+    def _export_to_txt(self, report_data: Dict[str, Any], filepath: Path):
+        """Export report data to text format."""
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write("ChainAnalyzer Report\n")
+            f.write("=" * 50 + "\n\n")
+            
+            f.write(f"Report Type: {report_data.get('report_type', 'summary')}\n")
+            f.write(f"Timestamp: {report_data.get('timestamp', '')}\n\n")
+            
+            # Analysis Summary
+            summary = report_data.get("analysis_summary", {})
+            f.write("Analysis Summary\n")
+            f.write("-" * 20 + "\n")
+            f.write(f"Address: {summary.get('address', '')}\n")
+            f.write(f"Currency: {summary.get('currency', '')}\n")
+            f.write(f"Total Transactions: {summary.get('total_transactions', 0)}\n")
+            f.write(f"Total Volume USD: ${summary.get('total_volume_usd', 0):,.2f}\n\n")
+            
+            # Risk Assessment
+            risk = report_data.get("risk_assessment", {})
+            f.write("Risk Assessment\n")
+            f.write("-" * 20 + "\n")
+            f.write(f"Risk Level: {risk.get('overall_risk_level', 'low')}\n")
+            f.write(f"Risk Score: {risk.get('risk_score', 0.0):.2f}\n\n")
+            
+            # Key Findings
+            f.write("Key Findings\n")
+            f.write("-" * 20 + "\n")
+            for finding in report_data.get("key_findings", []):
+                f.write(f"• {finding}\n")
+            f.write("\n")
+            
+            # Recommendations
+            f.write("Recommendations\n")
+            f.write("-" * 20 + "\n")
+            for rec in report_data.get("recommendations", []):
+                f.write(f"• {rec}\n")
