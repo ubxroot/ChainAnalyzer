@@ -1,14 +1,12 @@
 """
-Core Analysis Modules
-====================
+Utility Modules
+==============
 
-This package contains the core analysis modules for ChainAnalyzer:
-- tracer: Multi-chain transaction tracing
-- threat_intel: Threat intelligence analysis
-- risk_analyzer: Risk assessment
-- visualizer: Transaction visualization
-- reporter: Report generation
-- monitor: Real-time monitoring
+This package contains utility modules for ChainAnalyzer:
+- logger: Logging utilities
+- config: Configuration management
+- exporters: Export functionality
+- api_client: API client with rate limiting
 """
 
 __version__ = "2.0.0"
