@@ -12,7 +12,7 @@ Manages configuration for ChainAnalyzer:
 import json
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
