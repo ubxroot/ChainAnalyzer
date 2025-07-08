@@ -20,6 +20,13 @@ import json
 logger = logging.getLogger(__name__)
 
 class TransactionMonitor:
+    async def __aenter__(self):
+    # Any async setup code here (e.g., open async connections)
+    return self
+
+async def __aexit__(self, exc_type, exc_val, exc_tb):
+    # Any async cleanup code here (e.g., close async connections)
+    pass
     """Real-time transaction monitoring with alerting capabilities."""
     
     def __init__(self, config: Dict[str, Any]):
