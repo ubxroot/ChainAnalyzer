@@ -200,7 +200,8 @@ def monitor(
         # Start monitoring
         async def start_monitoring():
             async with monitor:
-                result = await monitor.start_monitoring(addresses, duration)
+                await monitor.start_monitoring(addresses, duration)
+                result = await monitor.stop_monitoring()
                 return result
         
         result = asyncio.run(start_monitoring())
@@ -453,4 +454,4 @@ def main():
     pass
 
 if __name__ == "__main__":
-    app()
+    app() 
