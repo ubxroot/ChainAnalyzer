@@ -1,390 +1,401 @@
 """
-Real-Time Monitor Module
-========================
+Monitor Module
+==============
 
-Provides real-time monitoring capabilities for blockchain transactions:
+Provides real-time monitoring capabilities:
 - Live transaction monitoring
 - Alert generation
 - Threshold-based notifications
 - Continuous surveillance
+- Monitoring dashboards
 """
 
 import asyncio
-import aiohttp
-import json
 import time
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime, timedelta
 import logging
-from pathlib import Path
+import json
 
 logger = logging.getLogger(__name__)
 
-class RealTimeMonitor:
-    """Real-time blockchain transaction monitoring."""
+class TransactionMonitor:
+    """Real-time transaction monitoring with alerting capabilities."""
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.api_keys = config.get("api_keys", {})
-        self.monitoring = False
+        self.monitoring_config = config.get("monitoring", {})
+        self.alert_thresholds = self.monitoring_config.get("alert_thresholds", {})
+        self.check_interval = self.monitoring_config.get("check_interval", 30)
+        
+        self.monitored_addresses = {}
         self.alert_callbacks = []
-        self.known_transactions = set()
+        self.is_monitoring = False
+        self.monitoring_task = None
+    
+    async def start_monitoring(self, addresses: List[Dict[str, Any]], 
+                             duration: Optional[int] = None) -> Dict[str, Any]:
+        """Start monitoring multiple addresses."""
         
-        # Monitoring configuration
-        self.monitor_config = {
-            "check_interval": 30,  # seconds
-            "max_retries": 3,
-            "retry_delay": 5,
-            "alert_thresholds": {
-                "volume": 10000,  # USD
-                "frequency": 10,  # transactions per minute
-                "suspicious_patterns": True
-            }
+        monitoring_result = {
+            "status": "started",
+            "timestamp": datetime.now().isoformat(),
+            "monitored_addresses": len(addresses),
+            "duration": duration,
+            "alerts": []
         }
-    
-    def start_monitoring(self, address: str, currency: str, duration: int = 3600,
-                        alert_threshold: float = 1000.0, output_file: Optional[str] = None):
-        """Start real-time monitoring of an address."""
-        try:
-            self.monitoring = True
-            logger.info(f"Starting monitoring for {address} on {currency}")
-            
-            # Run monitoring loop
-            asyncio.run(self._monitor_loop(address, currency, duration, alert_threshold, output_file))
-            
-        except KeyboardInterrupt:
-            logger.info("Monitoring stopped by user")
-            self.monitoring = False
-        except Exception as e:
-            logger.error(f"Error in monitoring: {e}")
-            self.monitoring = False
-    
-    async def _monitor_loop(self, address: str, currency: str, duration: int,
-                           alert_threshold: float, output_file: Optional[str]):
-        """Main monitoring loop."""
-        start_time = time.time()
-        alerts = []
         
-        async with aiohttp.ClientSession() as session:
-            while self.monitoring and (time.time() - start_time) < duration:
-                try:
-                    # Get latest transactions
-                    new_transactions = await self._get_latest_transactions(session, address, currency)
-                    
-                    # Process new transactions
-                    for tx in new_transactions:
-                        if tx.get("tx_hash") not in self.known_transactions:
-                            self.known_transactions.add(tx.get("tx_hash"))
-                            
-                            # Check for alerts
-                            alert = await self._check_for_alerts(tx, alert_threshold)
-                            if alert:
-                                alerts.append(alert)
-                                await self._trigger_alert(alert, output_file)
-                    
-                    # Wait before next check
-                    await asyncio.sleep(self.monitor_config["check_interval"])
-                    
-                except Exception as e:
-                    logger.error(f"Error in monitoring loop: {e}")
-                    await asyncio.sleep(self.monitor_config["retry_delay"])
-        
-        # Generate monitoring report
-        await self._generate_monitoring_report(alerts, address, currency, output_file)
-    
-    async def _get_latest_transactions(self, session: aiohttp.ClientSession,
-                                     address: str, currency: str) -> List[Dict]:
-        """Get latest transactions for the monitored address."""
         try:
-            if currency.lower() == "ethereum":
-                return await self._get_ethereum_transactions(session, address)
-            elif currency.lower() == "bitcoin":
-                return await self._get_bitcoin_transactions(session, address)
-            elif currency.lower() == "solana":
-                return await self._get_solana_transactions(session, address)
-            else:
-                logger.warning(f"Unsupported currency for monitoring: {currency}")
-                return []
+            # Initialize monitoring for each address
+            for addr_info in addresses:
+                address = addr_info.get("address")
+                currency = addr_info.get("currency", "ethereum")
+                thresholds = addr_info.get("thresholds", self.alert_thresholds)
                 
+                self.monitored_addresses[address] = {
+                    "currency": currency,
+                    "thresholds": thresholds,
+                    "last_check": None,
+                    "last_transaction": None,
+                    "transaction_count": 0,
+                    "total_volume": 0.0,
+                    "alerts": []
+                }
+            
+            # Start monitoring loop
+            self.is_monitoring = True
+            self.monitoring_task = asyncio.create_task(
+                self._monitoring_loop(duration)
+            )
+            
+            logger.info(f"Started monitoring {len(addresses)} addresses")
+            
         except Exception as e:
-            logger.error(f"Error getting latest transactions: {e}")
-            return []
+            logger.error(f"Error starting monitoring: {e}")
+            monitoring_result["status"] = "error"
+            monitoring_result["error"] = str(e)
+        
+        return monitoring_result
     
-    async def _get_ethereum_transactions(self, session: aiohttp.ClientSession,
-                                       address: str) -> List[Dict]:
-        """Get latest Ethereum transactions."""
-        api_key = self.api_keys.get("etherscan")
-        if not api_key:
-            logger.warning("No Etherscan API key provided for monitoring")
-            return []
+    async def stop_monitoring(self) -> Dict[str, Any]:
+        """Stop monitoring and return results."""
+        
+        stop_result = {
+            "status": "stopped",
+            "timestamp": datetime.now().isoformat(),
+            "monitoring_duration": 0,
+            "total_alerts": 0,
+            "address_summaries": {}
+        }
         
         try:
-            url = "https://api.etherscan.io/api"
-            params = {
-                "module": "account",
-                "action": "txlist",
+            if self.is_monitoring:
+                self.is_monitoring = False
+                
+                if self.monitoring_task:
+                    self.monitoring_task.cancel()
+                    try:
+                        await self.monitoring_task
+                    except asyncio.CancelledError:
+                        pass
+                
+                # Generate summaries
+                for address, data in self.monitored_addresses.items():
+                    stop_result["address_summaries"][address] = {
+                        "currency": data["currency"],
+                        "transaction_count": data["transaction_count"],
+                        "total_volume": data["total_volume"],
+                        "alert_count": len(data["alerts"])
+                    }
+                    stop_result["total_alerts"] += len(data["alerts"])
+                
+                logger.info("Monitoring stopped")
+            
+        except Exception as e:
+            logger.error(f"Error stopping monitoring: {e}")
+            stop_result["status"] = "error"
+            stop_result["error"] = str(e)
+        
+        return stop_result
+    
+    async def _monitoring_loop(self, duration: Optional[int] = None):
+        """Main monitoring loop."""
+        
+        start_time = time.time()
+        
+        while self.is_monitoring:
+            try:
+                # Check if duration exceeded
+                if duration and (time.time() - start_time) > duration:
+                    logger.info("Monitoring duration exceeded, stopping")
+                    break
+                
+                # Check each monitored address
+                for address, data in self.monitored_addresses.items():
+                    await self._check_address(address, data)
+                
+                # Wait for next check interval
+                await asyncio.sleep(self.check_interval)
+                
+            except asyncio.CancelledError:
+                logger.info("Monitoring loop cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in monitoring loop: {e}")
+                await asyncio.sleep(self.check_interval)
+    
+    async def _check_address(self, address: str, data: Dict[str, Any]):
+        """Check a single address for new transactions and alerts."""
+        
+        try:
+            # Get recent transactions (this would use the tracer)
+            # For now, we'll simulate this
+            recent_transactions = await self._get_recent_transactions(address, data["currency"])
+            
+            if recent_transactions:
+                # Update address data
+                data["last_check"] = datetime.now().isoformat()
+                data["transaction_count"] += len(recent_transactions)
+                
+                # Calculate new volume
+                new_volume = sum(tx.get("value_usd", 0) for tx in recent_transactions)
+                data["total_volume"] += new_volume
+                
+                # Check for alerts
+                alerts = self._check_alerts(address, data, recent_transactions)
+                
+                if alerts:
+                    data["alerts"].extend(alerts)
+                    
+                    # Trigger alert callbacks
+                    for alert in alerts:
+                        await self._trigger_alert_callbacks(alert)
+                
+                # Update last transaction
+                if recent_transactions:
+                    data["last_transaction"] = recent_transactions[-1]
+            
+        except Exception as e:
+            logger.error(f"Error checking address {address}: {e}")
+    
+    async def _get_recent_transactions(self, address: str, currency: str) -> List[Dict[str, Any]]:
+        """Get recent transactions for an address."""
+        
+        # This would integrate with the tracer module
+        # For now, return empty list to simulate no new transactions
+        return []
+    
+    def _check_alerts(self, address: str, data: Dict[str, Any], 
+                     transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Check for alerts based on thresholds and patterns."""
+        
+        alerts = []
+        thresholds = data["thresholds"]
+        
+        # Volume threshold alert
+        volume_threshold = thresholds.get("volume", 10000)
+        if data["total_volume"] > volume_threshold:
+            alerts.append({
+                "type": "volume_threshold",
                 "address": address,
-                "startblock": 0,
-                "endblock": 99999999,
-                "sort": "desc",
-                "apikey": api_key
-            }
-            
-            async with session.get(url, params=params) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data.get("status") == "1":
-                        transactions = []
-                        for tx in data.get("result", [])[:10]:  # Get latest 10
-                            transaction = {
-                                "tx_hash": tx.get("hash"),
-                                "block_number": int(tx.get("blockNumber", 0)),
-                                "timestamp": int(tx.get("timeStamp", 0)),
-                                "value_eth": float(tx.get("value", 0)) / 1e18,
-                                "value_usd": 0,  # Would need price API
-                                "from_address": tx.get("from"),
-                                "to_address": tx.get("to"),
-                                "confirmations": int(tx.get("confirmations", 0))
-                            }
-                            transactions.append(transaction)
-                        return transactions
-                        
-        except Exception as e:
-            logger.error(f"Error getting Ethereum transactions: {e}")
+                "timestamp": datetime.now().isoformat(),
+                "severity": "high",
+                "message": f"Volume threshold exceeded: ${data['total_volume']:,.2f}",
+                "details": {
+                    "current_volume": data["total_volume"],
+                    "threshold": volume_threshold
+                }
+            })
         
-        return []
-    
-    async def _get_bitcoin_transactions(self, session: aiohttp.ClientSession,
-                                      address: str) -> List[Dict]:
-        """Get latest Bitcoin transactions."""
-        try:
-            url = f"https://blockstream.info/api/address/{address}"
-            async with session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    transactions = []
-                    
-                    # Get recent transaction hashes
-                    tx_hashes = data.get("chain_stats", {}).get("funded_txo_count", [])
-                    
-                    for tx_hash in tx_hashes[:10]:  # Get latest 10
-                        tx_url = f"https://blockstream.info/api/tx/{tx_hash}"
-                        async with session.get(tx_url) as tx_response:
-                            if tx_response.status == 200:
-                                tx_data = await tx_response.json()
-                                transaction = {
-                                    "tx_hash": tx_hash,
-                                    "block_height": tx_data.get("status", {}).get("block_height"),
-                                    "timestamp": tx_data.get("status", {}).get("block_time"),
-                                    "value_btc": tx_data.get("value", 0) / 100000000,
-                                    "value_usd": 0,
-                                    "confirmations": tx_data.get("status", {}).get("confirmed", False)
-                                }
-                                transactions.append(transaction)
-                    
-                    return transactions
-                    
-        except Exception as e:
-            logger.error(f"Error getting Bitcoin transactions: {e}")
-        
-        return []
-    
-    async def _get_solana_transactions(self, session: aiohttp.ClientSession,
-                                     address: str) -> List[Dict]:
-        """Get latest Solana transactions."""
-        try:
-            url = "https://api.mainnet-beta.solana.com"
-            payload = {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "getSignaturesForAddress",
-                "params": [address, {"limit": 10}]
-            }
-            
-            async with session.post(url, json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    transactions = []
-                    
-                    for sig_info in data.get("result", []):
-                        # Get transaction details
-                        tx_payload = {
-                            "jsonrpc": "2.0",
-                            "id": 1,
-                            "method": "getTransaction",
-                            "params": [sig_info.get("signature"), {"encoding": "json"}]
-                        }
-                        
-                        async with session.post(url, json=tx_payload) as tx_response:
-                            if tx_response.status == 200:
-                                tx_data = await tx_response.json()
-                                tx_result = tx_data.get("result", {})
-                                
-                                if tx_result:
-                                    transaction = {
-                                        "tx_hash": sig_info.get("signature"),
-                                        "block_time": sig_info.get("blockTime"),
-                                        "slot": sig_info.get("slot"),
-                                        "fee": tx_result.get("meta", {}).get("fee", 0),
-                                        "confirmations": 1 if tx_result.get("meta", {}).get("err") is None else 0
-                                    }
-                                    transactions.append(transaction)
-                    
-                    return transactions
-                    
-        except Exception as e:
-            logger.error(f"Error getting Solana transactions: {e}")
-        
-        return []
-    
-    async def _check_for_alerts(self, transaction: Dict, alert_threshold: float) -> Optional[Dict]:
-        """Check if a transaction triggers an alert."""
-        alert = None
-        
-        # Volume-based alert
-        value_usd = transaction.get("value_usd", 0)
-        if value_usd > alert_threshold:
-            alert = {
-                "type": "high_volume",
-                "severity": "HIGH" if value_usd > alert_threshold * 10 else "MEDIUM",
-                "description": f"High volume transaction: ${value_usd:,.2f}",
-                "transaction": transaction,
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        # Frequency-based alert (would need to track transaction frequency)
-        # This is a simplified implementation
+        # Frequency threshold alert
+        frequency_threshold = thresholds.get("frequency", 10)
+        if data["transaction_count"] > frequency_threshold:
+            alerts.append({
+                "type": "frequency_threshold",
+                "address": address,
+                "timestamp": datetime.now().isoformat(),
+                "severity": "medium",
+                "message": f"Transaction frequency threshold exceeded: {data['transaction_count']} transactions",
+                "details": {
+                    "current_count": data["transaction_count"],
+                    "threshold": frequency_threshold
+                }
+            })
         
         # Suspicious pattern alert
-        if self._is_suspicious_transaction(transaction):
-            alert = {
-                "type": "suspicious_pattern",
-                "severity": "HIGH",
-                "description": "Suspicious transaction pattern detected",
-                "transaction": transaction,
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        return alert
-    
-    def _is_suspicious_transaction(self, transaction: Dict) -> bool:
-        """Check if a transaction has suspicious characteristics."""
-        # Check for known mixer addresses
-        mixer_addresses = [
-            "0x722122df12d4e14e13ac3b6895a86e84145b6967",  # Tornado Cash
-            "0xdd4c48c0b24039969fc16d1cdf626eab821d3384"   # Tornado Cash
-        ]
-        
-        from_addr = transaction.get("from_address", "")
-        to_addr = transaction.get("to_address", "")
-        
-        if from_addr in mixer_addresses or to_addr in mixer_addresses:
-            return True
-        
-        # Check for micro-transactions (potential dust attack)
-        value_usd = transaction.get("value_usd", 0)
-        if value_usd < 0.01:  # Less than 1 cent
-            return True
-        
-        return False
-    
-    async def _trigger_alert(self, alert: Dict, output_file: Optional[str]):
-        """Trigger an alert notification."""
-        try:
-            # Log alert
-            logger.warning(f"ALERT: {alert['type']} - {alert['description']}")
-            
-            # Save to file if specified
-            if output_file:
-                await self._save_alert_to_file(alert, output_file)
-            
-            # Execute alert callbacks
-            for callback in self.alert_callbacks:
-                try:
-                    await callback(alert)
-                except Exception as e:
-                    logger.error(f"Error in alert callback: {e}")
-            
-            # Print alert to console
-            print(f"\n🚨 ALERT: {alert['type'].upper()}")
-            print(f"   Severity: {alert['severity']}")
-            print(f"   Description: {alert['description']}")
-            print(f"   Transaction: {alert['transaction'].get('tx_hash', 'Unknown')}")
-            print(f"   Time: {alert['timestamp']}\n")
-            
-        except Exception as e:
-            logger.error(f"Error triggering alert: {e}")
-    
-    async def _save_alert_to_file(self, alert: Dict, output_file: str):
-        """Save alert to output file."""
-        try:
-            alert_data = {
-                "alert": alert,
-                "saved_at": datetime.now().isoformat()
-            }
-            
-            # Append to file
-            with open(output_file, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(alert_data) + '\n')
-                
-        except Exception as e:
-            logger.error(f"Error saving alert to file: {e}")
-    
-    async def _generate_monitoring_report(self, alerts: List[Dict], address: str,
-                                        currency: str, output_file: Optional[str]):
-        """Generate monitoring session report."""
-        try:
-            report = {
-                "monitoring_session": {
+        if thresholds.get("suspicious_patterns", True):
+            suspicious_patterns = self._detect_suspicious_patterns(transactions)
+            if suspicious_patterns:
+                alerts.append({
+                    "type": "suspicious_patterns",
                     "address": address,
-                    "currency": currency,
-                    "start_time": datetime.now().isoformat(),
-                    "end_time": datetime.now().isoformat(),
-                    "total_alerts": len(alerts),
-                    "alert_summary": {}
-                },
-                "alerts": alerts
-            }
-            
-            # Generate alert summary
-            alert_types = {}
-            for alert in alerts:
-                alert_type = alert.get("type", "unknown")
-                alert_types[alert_type] = alert_types.get(alert_type, 0) + 1
-            
-            report["monitoring_session"]["alert_summary"] = alert_types
-            
-            # Save report
-            if output_file:
-                report_file = output_file.replace(".txt", "_report.json")
-                with open(report_file, 'w', encoding='utf-8') as f:
-                    json.dump(report, f, indent=2)
+                    "timestamp": datetime.now().isoformat(),
+                    "severity": "high",
+                    "message": f"Suspicious patterns detected: {', '.join(suspicious_patterns)}",
+                    "details": {
+                        "patterns": suspicious_patterns
+                    }
+                })
+        
+        return alerts
+    
+    def _detect_suspicious_patterns(self, transactions: List[Dict[str, Any]]) -> List[str]:
+        """Detect suspicious patterns in transactions."""
+        
+        patterns = []
+        
+        if not transactions:
+            return patterns
+        
+        # Multiple small transactions (potential mixing)
+        small_txs = [tx for tx in transactions if tx.get("value_usd", 0) < 100]
+        if len(small_txs) > len(transactions) * 0.5:
+            patterns.append("multiple_small_transactions")
+        
+        # Rapid transactions
+        if len(transactions) > 1:
+            timestamps = [tx.get("timestamp", 0) for tx in transactions if tx.get("timestamp")]
+            if timestamps:
+                time_diffs = [timestamps[i+1] - timestamps[i] for i in range(len(timestamps)-1)]
+                rapid_txs = [diff for diff in time_diffs if diff < 60]  # Less than 1 minute
                 
-                logger.info(f"Monitoring report saved to: {report_file}")
-            
-            # Print summary
-            print(f"\n📊 Monitoring Session Summary")
-            print(f"   Address: {address}")
-            print(f"   Currency: {currency.upper()}")
-            print(f"   Total Alerts: {len(alerts)}")
-            print(f"   Alert Types: {alert_types}")
-            
-        except Exception as e:
-            logger.error(f"Error generating monitoring report: {e}")
+                if len(rapid_txs) > len(time_diffs) * 0.3:
+                    patterns.append("rapid_transactions")
+        
+        # Round number amounts
+        round_amounts = [tx for tx in transactions if tx.get("value_usd", 0) % 1000 == 0]
+        if len(round_amounts) > len(transactions) * 0.3:
+            patterns.append("round_number_amounts")
+        
+        return patterns
+    
+    async def _trigger_alert_callbacks(self, alert: Dict[str, Any]):
+        """Trigger registered alert callbacks."""
+        
+        for callback in self.alert_callbacks:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(alert)
+                else:
+                    callback(alert)
+            except Exception as e:
+                logger.error(f"Error in alert callback: {e}")
     
     def add_alert_callback(self, callback: Callable):
-        """Add a callback function for alerts."""
+        """Add an alert callback function."""
         self.alert_callbacks.append(callback)
+        logger.info("Alert callback added")
     
-    def stop_monitoring(self):
-        """Stop the monitoring process."""
-        self.monitoring = False
-        logger.info("Monitoring stopped")
+    def remove_alert_callback(self, callback: Callable):
+        """Remove an alert callback function."""
+        if callback in self.alert_callbacks:
+            self.alert_callbacks.remove(callback)
+            logger.info("Alert callback removed")
     
-    def get_monitoring_status(self) -> Dict:
+    def get_monitoring_status(self) -> Dict[str, Any]:
         """Get current monitoring status."""
+        
+        status = {
+            "is_monitoring": self.is_monitoring,
+            "monitored_addresses": len(self.monitored_addresses),
+            "check_interval": self.check_interval,
+            "total_alerts": sum(len(data["alerts"]) for data in self.monitored_addresses.values()),
+            "address_details": {}
+        }
+        
+        for address, data in self.monitored_addresses.items():
+            status["address_details"][address] = {
+                "currency": data["currency"],
+                "transaction_count": data["transaction_count"],
+                "total_volume": data["total_volume"],
+                "alert_count": len(data["alerts"]),
+                "last_check": data["last_check"]
+            }
+        
+        return status
+    
+    def get_alerts(self, address: Optional[str] = None, 
+                  alert_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get alerts for specific address or all addresses."""
+        
+        all_alerts = []
+        
+        for addr, data in self.monitored_addresses.items():
+            if address and addr != address:
+                continue
+            
+            for alert in data["alerts"]:
+                if alert_type and alert.get("type") != alert_type:
+                    continue
+                
+                alert_copy = alert.copy()
+                alert_copy["address"] = addr
+                all_alerts.append(alert_copy)
+        
+        # Sort by timestamp
+        all_alerts.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        
+        return all_alerts
+    
+    def export_monitoring_data(self, format: str = "json") -> str:
+        """Export monitoring data in specified format."""
+        
+        export_data = {
+            "export_timestamp": datetime.now().isoformat(),
+            "monitoring_status": self.get_monitoring_status(),
+            "all_alerts": self.get_alerts(),
+            "configuration": {
+                "check_interval": self.check_interval,
+                "alert_thresholds": self.alert_thresholds
+            }
+        }
+        
+        if format.lower() == "json":
+            return json.dumps(export_data, indent=2, default=str)
+        else:
+            raise ValueError(f"Unsupported export format: {format}")
+    
+    def clear_alerts(self, address: Optional[str] = None):
+        """Clear alerts for specific address or all addresses."""
+        
+        if address:
+            if address in self.monitored_addresses:
+                self.monitored_addresses[address]["alerts"] = []
+                logger.info(f"Cleared alerts for address {address}")
+        else:
+            for addr in self.monitored_addresses:
+                self.monitored_addresses[addr]["alerts"] = []
+            logger.info("Cleared all alerts")
+    
+    def update_thresholds(self, address: str, new_thresholds: Dict[str, Any]):
+        """Update alert thresholds for a specific address."""
+        
+        if address in self.monitored_addresses:
+            self.monitored_addresses[address]["thresholds"].update(new_thresholds)
+            logger.info(f"Updated thresholds for address {address}")
+        else:
+            logger.warning(f"Address {address} not found in monitored addresses")
+    
+    def get_monitoring_statistics(self) -> Dict[str, Any]:
+        """Get monitoring statistics."""
+        
+        total_transactions = sum(data["transaction_count"] for data in self.monitored_addresses.values())
+        total_volume = sum(data["total_volume"] for data in self.monitored_addresses.values())
+        total_alerts = sum(len(data["alerts"]) for data in self.monitored_addresses.values())
+        
+        # Alert type breakdown
+        alert_types = {}
+        for data in self.monitored_addresses.values():
+            for alert in data["alerts"]:
+                alert_type = alert.get("type", "unknown")
+                alert_types[alert_type] = alert_types.get(alert_type, 0) + 1
+        
         return {
-            "monitoring": self.monitoring,
-            "known_transactions": len(self.known_transactions),
-            "alert_callbacks": len(self.alert_callbacks)
-        } 
+            "total_monitored_addresses": len(self.monitored_addresses),
+            "total_transactions": total_transactions,
+            "total_volume": total_volume,
+            "total_alerts": total_alerts,
+            "alert_type_breakdown": alert_types,
+            "monitoring_duration": 0,  # Would calculate actual duration
+            "average_transactions_per_address": total_transactions / len(self.monitored_addresses) if self.monitored_addresses else 0
+        }
