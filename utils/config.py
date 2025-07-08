@@ -3,7 +3,7 @@ Configuration Manager Module
 ============================
 
 Manages configuration for ChainAnalyzer:
-- API key management
+- Free API endpoints only
 - Default settings
 - User preferences
 - Environment-specific configurations
@@ -32,15 +32,16 @@ class ConfigManager:
         return str(config_dir / "config.json")
     
     def _load_default_config(self) -> Dict[str, Any]:
-        """Load default configuration."""
+        """Load default configuration with only free APIs."""
         return {
             "api_keys": {
-                "etherscan": os.getenv("ETHERSCAN_API_KEY", ""),
-                "polygonscan": os.getenv("POLYGONSCAN_API_KEY", ""),
-                "bscscan": os.getenv("BSCSCAN_API_KEY", ""),
-                "trongrid": os.getenv("TRONGRID_API_KEY", ""),
-                "chainalysis": os.getenv("CHAINALYSIS_API_KEY", ""),
-                "bitcoin_abuse": os.getenv("BITCOIN_ABUSE_API_KEY", "")
+                # All APIs are now free - no keys required
+                "etherscan": "",  # Free tier
+                "polygonscan": "",  # Not used - using RPC instead
+                "bscscan": "",  # Not used - using RPC instead
+                "trongrid": "",  # Free tier
+                "chainalysis": "",  # Not used
+                "bitcoin_abuse": ""  # Not used
             },
             "blockchain_configs": {
                 "bitcoin": {
@@ -49,7 +50,8 @@ class ConfigManager:
                         "https://blockstream.info/api",
                         "https://mempool.space/api"
                     ],
-                    "rate_limit": 60
+                    "rate_limit": 60,
+                    "free": True
                 },
                 "ethereum": {
                     "enabled": True,
@@ -57,15 +59,19 @@ class ConfigManager:
                         "https://api.etherscan.io/api",
                         "https://api.ethplorer.io"
                     ],
-                    "rate_limit": 5
+                    "rate_limit": 5,
+                    "free": True,
+                    "use_free_tier": True
                 },
                 "solana": {
                     "enabled": True,
                     "api_endpoints": [
                         "https://api.mainnet-beta.solana.com",
-                        "https://solana-api.projectserum.com"
+                        "https://solana-api.projectserum.com",
+                        "https://rpc.ankr.com/solana"
                     ],
-                    "rate_limit": 100
+                    "rate_limit": 100,
+                    "free": True
                 },
                 "tron": {
                     "enabled": True,
@@ -73,23 +79,28 @@ class ConfigManager:
                         "https://api.trongrid.io",
                         "https://api.shasta.trongrid.io"
                     ],
-                    "rate_limit": 20
+                    "rate_limit": 20,
+                    "free": True
                 },
                 "polygon": {
                     "enabled": True,
                     "api_endpoints": [
-                        "https://api.polygonscan.com/api",
-                        "https://polygon-rpc.com"
+                        "https://polygon-rpc.com",
+                        "https://rpc-mainnet.maticvigil.com",
+                        "https://rpc-mainnet.matic.network"
                     ],
-                    "rate_limit": 5
+                    "rate_limit": 30,
+                    "free": True
                 },
                 "bsc": {
                     "enabled": True,
                     "api_endpoints": [
-                        "https://api.bscscan.com/api",
-                        "https://bsc-dataseed.binance.org"
+                        "https://bsc-dataseed.binance.org",
+                        "https://bsc-dataseed1.defibit.io",
+                        "https://bsc-dataseed1.ninicoin.io"
                     ],
-                    "rate_limit": 5
+                    "rate_limit": 30,
+                    "free": True
                 }
             },
             "analysis_settings": {
@@ -118,7 +129,8 @@ class ConfigManager:
                     "etherscan_tags",
                     "bitcoin_abuse",
                     "chainalysis"
-                ]
+                ],
+                "free_only": True
             },
             "monitoring": {
                 "enabled": True,
@@ -148,6 +160,12 @@ class ConfigManager:
                 "show_progress": True,
                 "verbose_output": False,
                 "color_output": True
+            },
+            "free_apis": {
+                "enabled": True,
+                "rate_limiting": True,
+                "fallback_endpoints": True,
+                "cache_responses": True
             }
         }
     
@@ -232,13 +250,13 @@ class ConfigManager:
         logger.info("Configuration reset to defaults")
     
     def update_api_key(self, service: str, api_key: str):
-        """Update API key for a specific service."""
+        """Update API key for a specific service (for free tier usage)."""
         if "api_keys" not in self.config:
             self.config["api_keys"] = {}
         
         self.config["api_keys"][service] = api_key
         self.save_config()
-        logger.info(f"API key updated for {service}")
+        logger.info(f"API key updated for {service} (free tier)")
     
     def get_api_key(self, service: str) -> Optional[str]:
         """Get API key for a specific service."""
@@ -293,14 +311,6 @@ class ConfigManager:
             "errors": []
         }
         
-        # Check for missing API keys
-        api_keys = self.config.get("api_keys", {})
-        required_apis = ["etherscan", "polygonscan", "bscscan"]
-        
-        for api in required_apis:
-            if not api_keys.get(api):
-                issues["warnings"].append(f"Missing API key for {api}")
-        
         # Check for enabled blockchains
         enabled_blockchains = self.get_enabled_blockchains()
         if not enabled_blockchains:
@@ -310,6 +320,11 @@ class ConfigManager:
         risk_thresholds = self.config.get("risk_thresholds", {})
         if not all(0 <= threshold <= 1 for threshold in risk_thresholds.values()):
             issues["errors"].append("Risk thresholds must be between 0 and 1")
+        
+        # Check free API configuration
+        free_apis = self.config.get("free_apis", {})
+        if not free_apis.get("enabled", True):
+            issues["warnings"].append("Free APIs are disabled - some features may not work")
         
         return issues
     
@@ -333,9 +348,23 @@ class ConfigManager:
         """Get a summary of the current configuration."""
         return {
             "enabled_blockchains": self.get_enabled_blockchains(),
-            "api_keys_configured": len([k for k, v in self.config.get("api_keys", {}).items() if v]),
+            "free_apis_enabled": self.config.get("free_apis", {}).get("enabled", True),
             "risk_thresholds": self.get_risk_thresholds(),
             "monitoring_enabled": self.config.get("monitoring", {}).get("enabled", False),
             "threat_intelligence_enabled": self.config.get("threat_intelligence", {}).get("enabled", False),
             "log_level": self.config.get("logging", {}).get("level", "INFO")
-        } 
+        }
+    
+    def is_free_api(self, service: str) -> bool:
+        """Check if a service uses only free APIs."""
+        blockchain_configs = self.config.get("blockchain_configs", {})
+        if service in blockchain_configs:
+            return blockchain_configs[service].get("free", True)
+        return True
+    
+    def get_free_api_endpoints(self, service: str) -> List[str]:
+        """Get free API endpoints for a service."""
+        blockchain_configs = self.config.get("blockchain_configs", {})
+        if service in blockchain_configs:
+            return blockchain_configs[service].get("api_endpoints", [])
+        return []
