@@ -20,8 +20,28 @@ import json
 logger = logging.getLogger(__name__)
 
 class TransactionMonitor:
-   class TransactionMonitor:
-     """Real-time transaction monitoring with alerting capabilities."""
+    """Real-time transaction monitoring with alerting capabilities."""
+
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.monitoring_config = config.get("monitoring", {})
+        self.alert_thresholds = self.monitoring_config.get("alert_thresholds", {})
+        self.check_interval = self.monitoring_config.get("check_interval", 30)
+
+        self.monitored_addresses = {}
+        self.alert_callbacks = []
+        self.is_monitoring = False
+        self.monitoring_task = None
+
+    async def __aenter__(self):
+        # Any async setup code here (e.g., open async connections)
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # Any async cleanup code here (e.g., close async connections)
+        pass
+
+    # ... rest of your methods ...
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
