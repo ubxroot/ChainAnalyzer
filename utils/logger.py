@@ -1,296 +1,165 @@
 """
-Logger Utility Module
-=====================
+Logger Module
+=============
 
-Provides comprehensive logging capabilities for ChainAnalyzer:
-- Multi-level logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+Provides comprehensive logging functionality:
+- Configurable log levels
 - File and console output
-- Structured logging for analysis sessions
-- Log rotation and management
+- Log rotation
+- Structured logging
+- Performance monitoring
 """
 
 import logging
 import logging.handlers
 import sys
 from pathlib import Path
+from typing import Dict, Any, Optional
 from datetime import datetime
-from typing import Optional, Dict, Any
-import json
 
-def setup_logger(name: str = "ChainAnalyzer", 
-                log_level: str = "INFO",
-                log_file: Optional[str] = None,
-                max_bytes: int = 10 * 1024 * 1024,  # 10MB
-                backup_count: int = 5) -> logging.Logger:
-    """
-    Set up a comprehensive logger for ChainAnalyzer.
+class ChainAnalyzerLogger:
+    """Advanced logging system for ChainAnalyzer."""
     
-    Args:
-        name: Logger name
-        log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_file: Path to log file (optional)
-        max_bytes: Maximum log file size before rotation
-        backup_count: Number of backup log files to keep
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.log_config = config.get("logging", {})
+        self.logger = None
+        self._setup_logging()
     
-    Returns:
-        Configured logger instance
-    """
-    
-    # Create logger
-    logger = logging.getLogger(name)
-    logger.setLevel(getattr(logging, log_level.upper()))
-    
-    # Clear existing handlers
-    logger.handlers.clear()
-    
-    # Create formatters
-    console_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    
-    file_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(console_formatter)
-    logger.addHandler(console_handler)
-    
-    # File handler (if specified)
-    if log_file:
-        try:
-            # Create log directory if it doesn't exist
-            log_path = Path(log_file)
-            log_path.parent.mkdir(parents=True, exist_ok=True)
+    def _setup_logging(self):
+        """Setup logging configuration."""
+        
+        # Create logger
+        self.logger = logging.getLogger("ChainAnalyzer")
+        self.logger.setLevel(self._get_log_level())
+        
+        # Clear existing handlers
+        self.logger.handlers.clear()
+        
+        # Console handler
+        if self.log_config.get("console_output", True):
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.setLevel(self._get_log_level())
+            console_formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+            console_handler.setFormatter(console_formatter)
+            self.logger.addHandler(console_handler)
+        
+        # File handler
+        if self.log_config.get("file_output", True):
+            log_dir = Path(self.log_config.get("log_directory", "logs"))
+            log_dir.mkdir(exist_ok=True)
             
-            # Use rotating file handler
+            log_file = log_dir / f"chainanalyzer_{datetime.now().strftime('%Y%m%d')}.log"
+            
             file_handler = logging.handlers.RotatingFileHandler(
                 log_file,
-                maxBytes=max_bytes,
-                backupCount=backup_count,
-                encoding='utf-8'
+                maxBytes=self.log_config.get("max_file_size", 10 * 1024 * 1024),  # 10MB
+                backupCount=self.log_config.get("backup_count", 5)
             )
-            file_handler.setLevel(logging.DEBUG)
+            file_handler.setLevel(self._get_log_level())
+            file_formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
+            )
             file_handler.setFormatter(file_formatter)
-            logger.addHandler(file_handler)
-            
-        except Exception as e:
-            logger.error(f"Failed to set up file logging: {e}")
+            self.logger.addHandler(file_handler)
     
-    return logger
-
-def setup_analysis_logger(session_id: str, 
-                         analysis_type: str,
-                         config: Dict[str, Any]) -> logging.Logger:
-    """
-    Set up a specialized logger for analysis sessions.
-    
-    Args:
-        session_id: Unique session identifier
-        analysis_type: Type of analysis (trace, monitor, threat_intel, etc.)
-        config: Configuration dictionary
-    
-    Returns:
-        Configured analysis logger
-    """
-    
-    # Create session-specific log file
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = f"analysis_{analysis_type}_{session_id}_{timestamp}.log"
-    
-    # Get log directory from config or use default
-    log_dir = config.get("logging", {}).get("log_directory", "logs")
-    log_file = Path(log_dir) / log_filename
-    
-    # Set up logger
-    logger = setup_logger(
-        name=f"ChainAnalyzer.{analysis_type}.{session_id}",
-        log_level=config.get("logging", {}).get("level", "INFO"),
-        log_file=str(log_file)
-    )
-    
-    # Log session start
-    logger.info(f"Analysis session started: {session_id}")
-    logger.info(f"Analysis type: {analysis_type}")
-    logger.info(f"Configuration: {json.dumps(config, default=str)}")
-    
-    return logger
-
-class AnalysisLogger:
-    """Specialized logger for blockchain analysis operations."""
-    
-    def __init__(self, session_id: str, analysis_type: str, config: Dict[str, Any]):
-        self.session_id = session_id
-        self.analysis_type = analysis_type
-        self.config = config
-        self.logger = setup_analysis_logger(session_id, analysis_type, config)
-        self.start_time = datetime.now()
-        
-        # Track analysis metrics
-        self.metrics = {
-            "transactions_processed": 0,
-            "addresses_analyzed": 0,
-            "alerts_generated": 0,
-            "errors_encountered": 0,
-            "processing_time": 0
+    def _get_log_level(self) -> int:
+        """Get log level from configuration."""
+        level_str = self.log_config.get("level", "INFO").upper()
+        level_map = {
+            "DEBUG": logging.DEBUG,
+            "INFO": logging.INFO,
+            "WARNING": logging.WARNING,
+            "ERROR": logging.ERROR,
+            "CRITICAL": logging.CRITICAL
         }
+        return level_map.get(level_str, logging.INFO)
     
-    def log_transaction_analysis(self, address: str, currency: str, 
-                               transaction_count: int, risk_score: float):
-        """Log transaction analysis results."""
-        self.metrics["transactions_processed"] += transaction_count
-        self.metrics["addresses_analyzed"] += 1
+    def debug(self, message: str, **kwargs):
+        """Log debug message."""
+        self.logger.debug(message, extra=kwargs)
+    
+    def info(self, message: str, **kwargs):
+        """Log info message."""
+        self.logger.info(message, extra=kwargs)
+    
+    def warning(self, message: str, **kwargs):
+        """Log warning message."""
+        self.logger.warning(message, extra=kwargs)
+    
+    def error(self, message: str, **kwargs):
+        """Log error message."""
+        self.logger.error(message, extra=kwargs)
+    
+    def critical(self, message: str, **kwargs):
+        """Log critical message."""
+        self.logger.critical(message, extra=kwargs)
+    
+    def exception(self, message: str, **kwargs):
+        """Log exception with traceback."""
+        self.logger.exception(message, extra=kwargs)
+    
+    def log_transaction(self, tx_hash: str, currency: str, value: float, **kwargs):
+        """Log transaction information."""
+        self.info(f"Transaction: {tx_hash} | Currency: {currency} | Value: ${value:,.2f}", **kwargs)
+    
+    def log_analysis_start(self, address: str, currency: str, **kwargs):
+        """Log analysis start."""
+        self.info(f"Starting analysis for {currency} address: {address}", **kwargs)
+    
+    def log_analysis_complete(self, address: str, currency: str, duration: float, **kwargs):
+        """Log analysis completion."""
+        self.info(f"Analysis complete for {currency} address: {address} | Duration: {duration:.2f}s", **kwargs)
+    
+    def log_alert(self, alert_type: str, address: str, message: str, **kwargs):
+        """Log alert."""
+        self.warning(f"ALERT [{alert_type}] {address}: {message}", **kwargs)
+    
+    def log_api_request(self, service: str, endpoint: str, status_code: int, duration: float, **kwargs):
+        """Log API request."""
+        self.debug(f"API Request: {service} | {endpoint} | Status: {status_code} | Duration: {duration:.2f}s", **kwargs)
+    
+    def log_error_with_context(self, error: Exception, context: str, **kwargs):
+        """Log error with context."""
+        self.error(f"Error in {context}: {str(error)}", **kwargs)
+    
+    def get_logger(self) -> logging.Logger:
+        """Get the underlying logger instance."""
+        return self.logger
+    
+    def set_level(self, level: str):
+        """Set log level dynamically."""
+        self.log_config["level"] = level
+        self._setup_logging()
+    
+    def get_log_files(self) -> list:
+        """Get list of log files."""
+        log_dir = Path(self.log_config.get("log_directory", "logs"))
+        if log_dir.exists():
+            return [str(f) for f in log_dir.glob("*.log")]
+        return []
+    
+    def clear_logs(self):
+        """Clear all log files."""
+        log_dir = Path(self.log_config.get("log_directory", "logs"))
+        if log_dir.exists():
+            for log_file in log_dir.glob("*.log"):
+                log_file.unlink()
+            self.info("All log files cleared")
+    
+    def get_log_statistics(self) -> Dict[str, Any]:
+        """Get logging statistics."""
+        log_files = self.get_log_files()
         
-        self.logger.info(
-            f"Transaction analysis completed - "
-            f"Address: {address}, Currency: {currency}, "
-            f"Transactions: {transaction_count}, Risk Score: {risk_score:.2f}"
-        )
-    
-    def log_threat_analysis(self, address: str, threat_score: float, 
-                          blacklist_matches: int, suspicious_indicators: int):
-        """Log threat intelligence analysis results."""
-        self.logger.info(
-            f"Threat analysis completed - "
-            f"Address: {address}, Threat Score: {threat_score:.2f}, "
-            f"Blacklist Matches: {blacklist_matches}, "
-            f"Suspicious Indicators: {suspicious_indicators}"
-        )
-    
-    def log_risk_assessment(self, address: str, risk_level: str, 
-                          risk_factors: int, recommendations: int):
-        """Log risk assessment results."""
-        self.logger.info(
-            f"Risk assessment completed - "
-            f"Address: {address}, Risk Level: {risk_level}, "
-            f"Risk Factors: {risk_factors}, Recommendations: {recommendations}"
-        )
-    
-    def log_alert(self, alert_type: str, severity: str, description: str, 
-                 transaction_hash: Optional[str] = None):
-        """Log security alerts."""
-        self.metrics["alerts_generated"] += 1
-        
-        self.logger.warning(
-            f"SECURITY ALERT - "
-            f"Type: {alert_type}, Severity: {severity}, "
-            f"Description: {description}, "
-            f"Transaction: {transaction_hash or 'N/A'}"
-        )
-    
-    def log_error(self, error_type: str, error_message: str, 
-                 context: Optional[Dict[str, Any]] = None):
-        """Log errors with context."""
-        self.metrics["errors_encountered"] += 1
-        
-        error_data = {
-            "error_type": error_type,
-            "error_message": error_message,
-            "context": context or {},
-            "session_id": self.session_id,
-            "analysis_type": self.analysis_type
+        stats = {
+            "log_files_count": len(log_files),
+            "current_level": self.log_config.get("level", "INFO"),
+            "console_output": self.log_config.get("console_output", True),
+            "file_output": self.log_config.get("file_output", True),
+            "max_file_size": self.log_config.get("max_file_size", 10 * 1024 * 1024),
+            "backup_count": self.log_config.get("backup_count", 5)
         }
         
-        self.logger.error(f"Analysis error: {json.dumps(error_data, default=str)}")
-    
-    def log_performance_metric(self, operation: str, duration: float, 
-                             additional_data: Optional[Dict[str, Any]] = None):
-        """Log performance metrics."""
-        self.logger.info(
-            f"Performance metric - "
-            f"Operation: {operation}, Duration: {duration:.2f}s, "
-            f"Additional Data: {additional_data or {}}"
-        )
-    
-    def log_configuration_change(self, config_key: str, old_value: Any, new_value: Any):
-        """Log configuration changes."""
-        self.logger.info(
-            f"Configuration changed - "
-            f"Key: {config_key}, Old Value: {old_value}, New Value: {new_value}"
-        )
-    
-    def log_api_request(self, api_name: str, endpoint: str, status_code: int, 
-                       response_time: float, success: bool):
-        """Log API request details."""
-        level = logging.INFO if success else logging.WARNING
-        
-        self.logger.log(
-            level,
-            f"API request - "
-            f"API: {api_name}, Endpoint: {endpoint}, "
-            f"Status: {status_code}, Response Time: {response_time:.2f}s, "
-            f"Success: {success}"
-        )
-    
-    def log_monitoring_event(self, event_type: str, address: str, 
-                           transaction_count: int, alert_count: int):
-        """Log monitoring events."""
-        self.logger.info(
-            f"Monitoring event - "
-            f"Type: {event_type}, Address: {address}, "
-            f"Transactions: {transaction_count}, Alerts: {alert_count}"
-        )
-    
-    def finalize_session(self):
-        """Finalize the analysis session and log summary."""
-        end_time = datetime.now()
-        self.metrics["processing_time"] = (end_time - self.start_time).total_seconds()
-        
-        # Log session summary
-        self.logger.info(
-            f"Analysis session completed - "
-            f"Session ID: {self.session_id}, "
-            f"Duration: {self.metrics['processing_time']:.2f}s, "
-            f"Transactions: {self.metrics['transactions_processed']}, "
-            f"Addresses: {self.metrics['addresses_analyzed']}, "
-            f"Alerts: {self.metrics['alerts_generated']}, "
-            f"Errors: {self.metrics['errors_encountered']}"
-        )
-        
-        # Save session metrics
-        self._save_session_metrics()
-    
-    def _save_session_metrics(self):
-        """Save session metrics to file."""
-        try:
-            metrics_file = Path("logs") / f"metrics_{self.session_id}.json"
-            metrics_file.parent.mkdir(parents=True, exist_ok=True)
-            
-            metrics_data = {
-                "session_id": self.session_id,
-                "analysis_type": self.analysis_type,
-                "start_time": self.start_time.isoformat(),
-                "end_time": datetime.now().isoformat(),
-                "metrics": self.metrics,
-                "config": self.config
-            }
-            
-            with open(metrics_file, 'w', encoding='utf-8') as f:
-                json.dump(metrics_data, f, indent=2, default=str)
-                
-        except Exception as e:
-            self.logger.error(f"Failed to save session metrics: {e}")
-
-def get_logger(name: str = "ChainAnalyzer") -> logging.Logger:
-    """Get a logger instance."""
-    return logging.getLogger(name)
-
-def log_function_call(func_name: str, args: tuple, kwargs: dict, 
-                     logger: Optional[logging.Logger] = None):
-    """Decorator to log function calls."""
-    if logger is None:
-        logger = get_logger()
-    
-    logger.debug(f"Function call: {func_name}(args={args}, kwargs={kwargs})")
-
-def log_execution_time(func_name: str, execution_time: float, 
-                      logger: Optional[logging.Logger] = None):
-    """Log function execution time."""
-    if logger is None:
-        logger = get_logger()
-    
-    logger.info(f"Function {func_name} executed in {execution_time:.2f} seconds") 
+        return stats
