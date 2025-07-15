@@ -16,6 +16,8 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 from datetime import datetime
 import logging
+import logging
+from fpdf import FPDF
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,8 @@ class DataExporter:
                 return self._export_to_csv(data, filepath)
             elif format.lower() == "txt":
                 return self._export_to_txt(data, filepath)
+            elif format.lower() == "pdf":
+                return self._export_to_pdf(data, filepath)
             else:
                 raise ValueError(f"Unsupported export format: {format}")
         
@@ -133,6 +137,43 @@ class DataExporter:
                 f.write(f"{addr}\n")
         
         logger.info(f"Data exported to TXT: {filepath}")
+        return str(filepath)
+    
+    def _export_to_pdf(self, data: Dict[str, Any], filepath: Path) -> str:
+        """Export data to PDF format using fpdf."""
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 16)
+        pdf.cell(0, 10, "ChainAnalyzer Export Report", ln=True, align="C")
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 10, f"Export Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True)
+        pdf.cell(0, 10, f"Address: {data.get('address', '')}", ln=True)
+        pdf.cell(0, 10, f"Currency: {data.get('currency', '')}", ln=True)
+        pdf.ln(5)
+        # Summary
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Summary", ln=True)
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 8, f"Total Transactions: {len(data.get('transactions', []))}", ln=True)
+        pdf.cell(0, 8, f"Total Volume USD: ${sum(tx.get('value_usd', 0) for tx in data.get('transactions', [])):,.2f}", ln=True)
+        pdf.cell(0, 8, f"Connected Addresses: {len(data.get('addresses', []))}", ln=True)
+        pdf.ln(5)
+        # Transactions
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Transactions", ln=True)
+        pdf.set_font("Arial", "", 10)
+        for i, tx in enumerate(data.get("transactions", []), 1):
+            pdf.multi_cell(0, 7, f"{i}. Hash: {tx.get('tx_hash', '')}\n   From: {', '.join(tx.get('from_addresses', []))}\n   To: {', '.join(tx.get('to_addresses', []))}\n   Value: ${tx.get('value_usd', 0):,.2f}\n   Timestamp: {tx.get('timestamp', '')}")
+            pdf.ln(1)
+        pdf.ln(2)
+        # Addresses
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Connected Addresses", ln=True)
+        pdf.set_font("Arial", "", 10)
+        for addr in data.get("addresses", []):
+            pdf.cell(0, 7, addr, ln=True)
+        pdf.output(str(filepath))
+        logger.info(f"Data exported to PDF: {filepath}")
         return str(filepath)
     
     def export_transactions(self, transactions: List[Dict[str, Any]], 
@@ -261,4 +302,4 @@ class DataExporter:
                     zipf.write(file_path, file_path.name)
         
         logger.info(f"Exports compressed to: {archive_path}")
-        return str(archive_path)
+        return str(archive_path) 
