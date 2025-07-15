@@ -36,6 +36,7 @@ from core.monitor import TransactionMonitor
 from utils.config import ConfigManager
 from utils.logger import ChainAnalyzerLogger
 from utils.exporters import DataExporter
+from utils.time_utils import convert_epoch_to_human
 from utils.api_client import APIClient
 
 # Rich imports for beautiful CLI
@@ -284,6 +285,7 @@ def config(
 
 def display_trace_results(result: dict, output_format: str, export: bool, logger: ChainAnalyzerLogger):
     """Display trace results in specified format."""
+    import asyncio
     
     if output_format == "table":
         # Create summary table
@@ -311,6 +313,18 @@ def display_trace_results(result: dict, output_format: str, export: bool, logger
         # Display relationships if any
         if result.get("relationships", {}).get("address_connections"):
             console.print(f"\n🔗 Address Relationships: {len(result['relationships']['address_connections'])} connections")
+        
+        # Display transaction timeline with human-readable dates
+        if result.get("transactions"):
+            console.print("\n🕒 Transaction Timeline:", style="bold blue")
+            for tx in result["transactions"]:
+                epoch = tx.get("timestamp")
+                if epoch:
+                    try:
+                        human_time = asyncio.run(convert_epoch_to_human(int(epoch)))
+                    except Exception:
+                        human_time = str(epoch)
+                    console.print(f"  {tx.get('tx_hash', '')}: {epoch} ({human_time})", style="dim")
     
     elif output_format == "json":
         console.print(json.dumps(result, indent=2, default=str))
@@ -319,6 +333,11 @@ def display_trace_results(result: dict, output_format: str, export: bool, logger
         # Export to CSV
         exporter = DataExporter(load_config())
         filepath = exporter.export_data(result, "csv")
+        console.print(f"📁 Results exported to: {filepath}", style="green")
+    
+    elif output_format == "pdf":
+        exporter = DataExporter(load_config())
+        filepath = exporter.export_data(result, "pdf")
         console.print(f"📁 Results exported to: {filepath}", style="green")
     
     # Export if requested
