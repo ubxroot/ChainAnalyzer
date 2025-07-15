@@ -182,7 +182,9 @@ class APIClient:
             "bitcoin": {
                 "api_endpoints": [
                     "https://blockstream.info/api",
-                    "https://mempool.space/api"
+                    "https://mempool.space/api",
+                    "https://api.btcscan.org/v1",
+                    "https://api.blockchair.com/bitcoin"
                 ],
                 "rate_limit": 60,  # requests per second
                 "rate_limit_window": 1,
@@ -191,7 +193,8 @@ class APIClient:
             "ethereum": {
                 "api_endpoints": [
                     "https://api.etherscan.io/api",
-                    "https://api.ethplorer.io"
+                    "https://api.ethplorer.io",
+                    "https://api.blockchair.com/ethereum"
                 ],
                 "rate_limit": 5,
                 "rate_limit_window": 1,
@@ -311,8 +314,7 @@ class APIClient:
     
     async def get_ethereum_transactions(self, address: str, start_block: int = 0, 
                                       end_block: int = 99999999) -> List[Dict]:
-        """Get Ethereum transactions for an address using free endpoints."""
-        # Try Etherscan free tier first
+        """Get Ethereum transactions for an address using free endpoints (Etherscan, Ethplorer, Blockchair)."""
         params = {
             "module": "account",
             "action": "txlist",
@@ -322,10 +324,8 @@ class APIClient:
             "sort": "desc",
             "apikey": "YourApiKeyToken"  # Free tier key
         }
-        
         try:
             response = await self.request("ethereum", "", params=params)
-            
             if response.status_code == 200 and response.data.get("status") == "1":
                 return response.data.get("result", [])
             else:
@@ -337,25 +337,46 @@ class APIClient:
                         if resp.status == 200:
                             data = await resp.json()
                             return data.get("operations", [])
-        
+                logger.warning(f"Ethplorer failed, trying Blockchair")
+                # Fallback to Blockchair
+                blockchair_url = f"https://api.blockchair.com/ethereum/dashboards/address/{address}"
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(blockchair_url) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            txs = data.get("data", {}).get(address, {}).get("transactions", [])
+                            return txs
         except Exception as e:
             logger.error(f"Failed to get Ethereum transactions: {e}")
-        
         return []
     
     async def get_bitcoin_transactions(self, address: str) -> List[Dict]:
-        """Get Bitcoin transactions for an address using Blockstream API."""
+        """Get Bitcoin transactions for an address using multiple free APIs (Blockstream, btcscan.org, Blockchair)."""
+        # Try Blockstream first
         try:
             response = await self.request("bitcoin", f"/address/{address}/txs")
-            
             if response.status_code == 200:
                 return response.data
             else:
-                logger.error(f"Failed to get Bitcoin transactions: {response.data}")
-        
+                logger.warning(f"Blockstream failed, trying btcscan.org")
+                # Try btcscan.org
+                btcscan_url = f"https://api.btcscan.org/v1/address/{address}/transactions"
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(btcscan_url) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            return data.get("data", [])
+                logger.warning(f"btcscan.org failed, trying Blockchair")
+                # Try Blockchair
+                blockchair_url = f"https://api.blockchair.com/bitcoin/dashboards/address/{address}"
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(blockchair_url) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            txs = data.get("data", {}).get(address, {}).get("transactions", [])
+                            return txs
         except Exception as e:
             logger.error(f"Failed to get Bitcoin transactions: {e}")
-        
         return []
     
     async def get_solana_transactions(self, address: str, limit: int = 100) -> List[Dict]:
@@ -459,4 +480,4 @@ class APIClient:
             "cache_ttl": self.cache_ttl,
             "cache_keys": list(self.cache.keys()),
             "free_apis_only": True
-        }
+        } 
