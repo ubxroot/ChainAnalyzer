@@ -2,7 +2,6 @@
 import hashlib
 import base64
 from cryptography.fernet import Fernet
-from typing import str, bytes
 
 class EncryptionUtils:
     """Encryption utilities for sensitive data."""
