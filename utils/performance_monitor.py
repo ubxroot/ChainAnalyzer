@@ -40,29 +40,6 @@ class PerformanceMonitor:
                 'end_memory': end_memory
             }
     
-    def start_system_monitoring(self):
-        """Start continuous system monitoring."""
-        self.monitoring = True
-        self.monitor_thread = threading.Thread(target=self._monitor_system)
-        self.monitor_thread.start()
-    
-    def stop_system_monitoring(self):
-        """Stop system monitoring."""
-        self.monitoring = False
-        if self.monitor_thread:
-            self.monitor_thread.join()
-    
-    def _monitor_system(self):
-        """Monitor system resources."""
-        while self.monitoring:
-            self.system_stats = {
-                'cpu_percent': psutil.cpu_percent(),
-                'memory_percent': psutil.virtual_memory().percent,
-                'disk_usage': psutil.disk_usage('/').percent,
-                'timestamp': time.time()
-            }
-            time.sleep(1)
-    
     def get_summary(self) -> Dict[str, Any]:
         """Get performance summary."""
         # Calculate total analysis time
