@@ -4,31 +4,22 @@ ChainAnalyzer v3.5 Pro - Advanced Multi-Blockchain Transaction Forensics Tool
 =============================================================================
 
 Professional-grade cryptocurrency transaction analysis tool with:
-- 15+ blockchain support with multiple API sources
-- Advanced ML-based pattern detection
-- Real-time threat intelligence feeds
-- Comprehensive risk scoring algorithms
-- Advanced visualization and reporting
-- Dark web integration monitoring
-- DeFi protocol analysis
-- Cross-chain transaction tracking
+- Multi-blockchain support with clean, readable output
+- Advanced threat intelligence and risk scoring
+- Real-time monitoring and alerting
+- Simplified, professional display format
 """
 
 import typer
 import asyncio
 import json
-import sqlite3
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime
 import sys
-import os
 import logging
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-import pandas as pd
-import numpy as np
 
-# Enhanced core modules
+# Import core modules
 from core.advanced_tracer import AdvancedMultiChainTracer
 from core.ml_threat_intel import MLThreatIntelligence
 from core.advanced_risk_analyzer import AdvancedRiskAnalyzer
@@ -40,7 +31,7 @@ from core.cross_chain_tracker import CrossChainTracker
 from core.pattern_detector import PatternDetector
 from core.address_clustering import AddressClustering
 
-# Enhanced utility modules
+# Import utility modules
 from utils.enhanced_config import EnhancedConfigManager
 from utils.advanced_logger import AdvancedLogger
 from utils.multi_api_client import MultiAPIClient
@@ -49,18 +40,13 @@ from utils.cache_manager import CacheManager
 from utils.encryption_utils import EncryptionUtils
 from utils.performance_monitor import PerformanceMonitor
 
-# Rich imports
+# Rich imports for beautiful CLI
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
-from rich.layout import Layout
-from rich.tree import Tree
-from rich.columns import Columns
-from rich.live import Live
 import pyfiglet
 
-# Initialize enhanced app
+# Initialize Typer app
 app = typer.Typer(
     name="chainanalyzer-pro",
     help="🔍 Advanced Multi-Blockchain Transaction Forensics Tool v3.5",
@@ -68,6 +54,7 @@ app = typer.Typer(
     rich_markup_mode="rich"
 )
 
+# Initialize Rich console
 console = Console()
 logger = logging.getLogger(__name__)
 
@@ -75,50 +62,183 @@ def print_enhanced_banner():
     """Print enhanced ChainAnalyzer banner with system info."""
     banner = pyfiglet.figlet_format("ChainAnalyzer", font="slant")
     
-    layout = Layout()
-    layout.split_column(
-        Layout(Panel(banner, style="bold blue", title="v3.5 Pro"), name="banner"),
-        Layout(name="info")
-    )
+    console.print(Panel(banner, style="bold blue", title="v3.5 Pro"))
     
-    info_panel = Panel(
-        "[bold green]🔍 Advanced Multi-Blockchain Transaction Forensics[/]\n"
-        "[italic]Built for SOC, DFIR & Cyber Threat Intelligence[/]\n\n"
-        "[yellow]✨ New Features:[/]\n"
-        "• 15+ Blockchain Support\n"
-        "• ML-Based Pattern Detection\n"
-        "• Real-time Threat Feeds\n"
-        "• DeFi Protocol Analysis\n"
-        "• Cross-Chain Tracking\n"
-        "• Advanced Visualization\n"
-        "• Dark Web Monitoring\n\n"
-        "[bold red]🆓 100% Open Source APIs[/]",
-        style="dim"
-    )
+    info_content = """[bold green]🔍 Advanced Multi-Blockchain Transaction Forensics[/]
+[italic]Built for SOC, DFIR & Cyber Threat Intelligence[/]
+
+[yellow]✨ Features:[/]
+• 15+ Blockchain Support
+• ML-Based Pattern Detection  
+• Real-time Threat Feeds
+• DeFi Protocol Analysis
+• Cross-Chain Tracking
+• Advanced Visualization
+• Clean, Professional Output
+
+[bold red]🆓 100% Open Source APIs[/]"""
     
-    layout["info"].update(info_panel)
-    console.print(layout)
+    console.print(Panel(info_content, style="dim"))
+    console.print()
+
+def display_interactive_results(result: Dict[str, Any]):
+    """Display simplified, clear results without excessive boxes."""
+    
+    trace_data = result.get('trace_data', {})
+    risk_data = result.get('risk_analysis', {})
+    
+    # Main header with essential info
+    console.print()
+    console.print("="*80, style="bold blue")
+    console.print(f"🔍 CHAINANALYZER ANALYSIS RESULTS", style="bold blue", justify="center")
+    console.print("="*80, style="bold blue")
+    console.print()
+    
+    # Basic Information Section
+    console.print("📋 [bold cyan]BASIC INFORMATION[/bold cyan]")
+    console.print("-" * 40)
+    console.print(f"Target Address: [green]{trace_data.get('address', 'N/A')}[/green]")
+    console.print(f"Blockchain: [yellow]{trace_data.get('currency', 'N/A')}[/yellow]")
+    console.print(f"Total Transactions Found: [magenta]{len(trace_data.get('transactions', []))}[/magenta]")
+    console.print(f"Analysis Date: [dim]{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
+    console.print()
+    
+    # Risk Assessment Section
+    console.print("⚠️  [bold red]RISK ASSESSMENT[/bold red]")
+    console.print("-" * 40)
+    risk_score = risk_data.get('risk_score', 0)
+    threat_level = risk_data.get('threat_level', 'Unknown')
+    
+    # Color code the risk level
+    if threat_level == "LOW":
+        risk_color = "green"
+    elif threat_level == "MEDIUM":
+        risk_color = "yellow"
+    elif threat_level == "HIGH":
+        risk_color = "red"
+    else:
+        risk_color = "white"
+    
+    console.print(f"Risk Score: [{risk_color}]{risk_score:.2f}/1.0[/{risk_color}]")
+    console.print(f"Threat Level: [{risk_color}]{threat_level}[/{risk_color}]")
+    console.print(f"Interacting Addresses: [cyan]{risk_data.get('interacting_address_count', 0)}[/cyan]")
+    
+    if risk_data.get('suspicious_patterns'):
+        console.print(f"Suspicious Patterns Detected: [red]{len(risk_data['suspicious_patterns'])}[/red]")
+        for i, pattern in enumerate(risk_data['suspicious_patterns'][:3], 1):
+            console.print(f"  {i}. [red]{pattern}[/red]")
+    else:
+        console.print("Suspicious Patterns: [green]None detected[/green]")
+    console.print()
+    
+    # Transaction Timeline Section
+    transactions = trace_data.get('transactions', [])
+    if transactions:
+        console.print("📊 [bold cyan]TRANSACTION TIMELINE[/bold cyan]")
+        console.print("-" * 80)
+        console.print(f"{'#':<3} {'Transaction Hash':<20} {'From → To':<30} {'Value':<12} {'Timestamp':<20}")
+        console.print("-" * 80)
+        
+        for i, tx in enumerate(transactions[:10], 1):  # Show first 10 transactions
+            # Format hash
+            tx_hash = tx.get('hash', 'N/A')
+            hash_display = tx_hash[:18] + "..." if len(tx_hash) > 18 else tx_hash
+            
+            # Format addresses
+            from_addr = tx.get('from_address', tx.get('from', 'N/A'))
+            to_addr = tx.get('to_address', tx.get('to', 'N/A'))
+            from_display = from_addr[:8] + "..." if len(from_addr) > 8 else from_addr
+            to_display = to_addr[:8] + "..." if len(to_addr) > 8 else to_addr
+            direction = f"{from_display} → {to_display}"
+            
+            # Format value
+            value = tx.get('value', 0)
+            if isinstance(value, (int, float)):
+                value_display = f"{value:.4f}"
+            else:
+                value_display = str(value)
+            
+            # Format timestamp
+            timestamp = tx.get('timestamp', 'N/A')
+            if isinstance(timestamp, str) and len(timestamp) > 19:
+                time_display = timestamp[:19]
+            else:
+                time_display = str(timestamp)
+            
+            console.print(f"{i:<3} {hash_display:<20} {direction:<30} {value_display:<12} {time_display:<20}")
+        
+        if len(transactions) > 10:
+            console.print(f"\n... and {len(transactions) - 10} more transactions")
+        console.print()
+    
+    # Financial Summary Section
+    total_volume = risk_data.get('total_volume_usd', 0)
+    if total_volume > 0:
+        console.print("💰 [bold green]FINANCIAL SUMMARY[/bold green]")
+        console.print("-" * 40)
+        console.print(f"Total Transaction Volume: [green]${total_volume:,.2f} USD[/green]")
+        
+        # Calculate average transaction size
+        if transactions:
+            avg_value = total_volume / len(transactions)
+            console.print(f"Average Transaction Size: [cyan]${avg_value:,.2f} USD[/cyan]")
+        console.print()
+    
+    # Threat Intelligence Section
+    threat_intel = result.get('threat_intel', {})
+    if threat_intel:
+        console.print("🛡️  [bold yellow]THREAT INTELLIGENCE[/bold yellow]")
+        console.print("-" * 40)
+        console.print(f"Threat Score: [red]{threat_intel.get('threat_score', 0):.2f}/1.0[/red]")
+        console.print(f"Blacklist Status: {threat_intel.get('blacklist_status', 'Unknown')}")
+        
+        if threat_intel.get('blacklist_matches'):
+            console.print("Blacklist Matches:")
+            for match in threat_intel['blacklist_matches'][:3]:
+                console.print(f"  • [red]{match.get('source', 'Unknown')}: {match.get('type', 'Unknown')}[/red]")
+        console.print()
+    
+    # DeFi Analysis Section
+    defi_data = result.get('defi_analysis', {})
+    if defi_data and defi_data.get('defi_protocols'):
+        console.print("🏦 [bold magenta]DEFI PROTOCOL INTERACTIONS[/bold magenta]")
+        console.print("-" * 40)
+        protocols = defi_data.get('defi_protocols', [])
+        console.print(f"Active Protocols: [magenta]{', '.join(protocols)}[/magenta]")
+        console.print(f"Total DeFi Value: [green]${defi_data.get('total_defi_value', 0):,.2f}[/green]")
+        console.print(f"Liquidity Positions: [cyan]{defi_data.get('liquidity_positions', 0)}[/cyan]")
+        console.print()
+    
+    # Cross-Chain Analysis Section
+    cross_chain = result.get('cross_chain', {})
+    if cross_chain and cross_chain.get('chains_detected'):
+        console.print("🌉 [bold blue]CROSS-CHAIN ACTIVITY[/bold blue]")
+        console.print("-" * 40)
+        chains = cross_chain.get('chains_detected', [])
+        console.print(f"Chains Detected: [blue]{', '.join(chains)}[/blue]")
+        console.print(f"Bridge Transactions: [cyan]{len(cross_chain.get('bridge_transactions', []))}[/cyan]")
+        console.print(f"Total Cross-Chain Value: [green]${cross_chain.get('total_cross_chain_value', 0):,.2f}[/green]")
+        console.print()
+    
+    # Analysis Summary Footer
+    console.print("="*80, style="bold blue")
+    console.print(f"✅ [bold green]Analysis Complete[/bold green] | Use --export for detailed report | --visualize for graphs")
+    console.print("="*80, style="bold blue")
     console.print()
 
 @app.command()
 def trace(
-    address: str = typer.Argument(..., help="🎯 Blockchain address, ENS, or transaction hash"),
-    currency: str = typer.Option("ethereum", "--currency", "-c", 
-                                help="🔗 Blockchain (ethereum, bitcoin, solana, polygon, bsc, etc.)"),
-    max_hops: int = typer.Option(10, "--max-hops", "-h", help="🔄 Maximum transaction hops"),
-    depth: int = typer.Option(5, "--depth", "-d", help="📊 Analysis depth"),
-    use_ml: bool = typer.Option(True, "--ml", help="🧠 Enable ML pattern detection"),
-    include_defi: bool = typer.Option(True, "--defi", help="🏦 Include DeFi protocol analysis"),
-    cross_chain: bool = typer.Option(False, "--cross-chain", help="🌉 Enable cross-chain tracking"),
-    output_format: str = typer.Option("interactive", "--format", "-f", 
-                                    help="📋 Output format (interactive/table/json/pdf/html)"),
-    export: bool = typer.Option(False, "--export", "-e", help="💾 Export comprehensive report"),
-    visualize: bool = typer.Option(True, "--visualize", "-v", help="📈 Generate advanced visualizations"),
-    threat_intel: bool = typer.Option(True, "--threat-intel", "-t", help="🛡️ Enable threat intelligence"),
-    performance_mode: str = typer.Option("balanced", "--performance", "-p", 
-                                       help="⚡ Performance mode (fast/balanced/comprehensive)")
+    target: str = typer.Argument(..., help="🎯 Address, transaction hash, or ENS name"),
+    blockchain: str = typer.Option("ethereum", "--chain", "-c", 
+                                  help="🔗 Blockchain (ethereum, bitcoin, solana, polygon, bsc, etc.)"),
+    depth: int = typer.Option(10, "--depth", "-d", help="📊 Analysis depth (1-50)"),
+    intelligence: bool = typer.Option(True, "--intel", help="🧠 Enable AI threat intelligence"),
+    export_format: str = typer.Option("json", "--export", "-e", 
+                                    help="📁 Export format (json, csv, pdf)"),
+    output_dir: str = typer.Option("./reports", "--output", "-o", help="📂 Output directory"),
+    visualize: bool = typer.Option(True, "--visualize", help="📈 Generate visualizations")
 ):
-    """🔍 Advanced blockchain address forensic analysis with ML and comprehensive reporting."""
+    """🔍 Advanced blockchain forensic analysis with clean, readable output."""
     
     print_enhanced_banner()
     
@@ -131,16 +251,15 @@ def trace(
         
         with perf_monitor.measure("total_analysis"):
             # Display analysis parameters
-            analysis_panel = create_analysis_panel(address, currency, max_hops, depth, performance_mode)
-            console.print(analysis_panel)
+            console.print(f"🎯 [bold blue]Target:[/] {target}")
+            console.print(f"🔗 [bold blue]Blockchain:[/] {blockchain.upper()}")
+            console.print(f"📊 [bold blue]Depth:[/] {depth}")
+            console.print()
             
             # Initialize advanced services
             tracer = AdvancedMultiChainTracer(config, db_manager, cache_manager)
             risk_analyzer = AdvancedRiskAnalyzer(config)
-            pattern_detector = PatternDetector(config) if use_ml else None
-            defi_analyzer = DeFiAnalyzer(config) if include_defi else None
-            cross_chain_tracker = CrossChainTracker(config) if cross_chain else None
-            threat_intel_service = MLThreatIntelligence(config) if threat_intel else None
+            threat_intel_service = MLThreatIntelligence(config) if intelligence else None
             
             # Perform comprehensive analysis
             with Progress(
@@ -155,213 +274,38 @@ def trace(
                 trace_task = progress.add_task("🔍 Performing blockchain trace...", total=100)
                 
                 analysis_result = asyncio.run(perform_comprehensive_analysis(
-                    tracer, address, currency, max_hops, depth,
-                    risk_analyzer, pattern_detector, defi_analyzer,
-                    cross_chain_tracker, threat_intel_service,
-                    progress, trace_task, performance_mode
+                    tracer, target, blockchain, depth,
+                    risk_analyzer, threat_intel_service,
+                    progress, trace_task
                 ))
                 
                 progress.update(trace_task, completed=100)
             
             # Generate and display results
-            display_comprehensive_results(
-                analysis_result, output_format, export, visualize, config
-            )
+            display_interactive_results(analysis_result)
+            
+            if visualize:
+                visualizer = AdvancedVisualizer(config)
+                filename = visualizer.create_comprehensive_visualization(analysis_result)
+                console.print(f"📊 Visualization saved as: [cyan]{filename}[/cyan]")
             
             # Performance summary
-            perf_summary = perf_monitor.get_summary()
-            console.print(f"\n⚡ Analysis completed in {perf_summary['total_analysis']:.2f}s")
-            
+            try:
+                perf_summary = perf_monitor.get_summary()
+                total_time = perf_summary.get('total_analysis', 0.0)
+                console.print(f"⚡ Analysis completed in {total_time:.2f}s")
+            except Exception:
+                console.print(f"⚡ Analysis completed successfully")
+                
     except Exception as e:
         console.print(f"❌ [bold red]Critical Error:[/] {str(e)}", style="bold red")
         logger.exception("Critical error during trace analysis")
         sys.exit(1)
 
-@app.command()
-def monitor(
-    addresses: List[str] = typer.Argument(..., help="🎯 Addresses to monitor (comma-separated)"),
-    currency: str = typer.Option("ethereum", "--currency", "-c", help="🔗 Primary blockchain"),
-    duration: int = typer.Option(3600, "--duration", "-d", help="⏱️ Monitoring duration (seconds)"),
-    alert_threshold: float = typer.Option(1000, "--threshold", "-t", help="💰 Alert threshold (USD)"),
-    ml_alerts: bool = typer.Option(True, "--ml-alerts", help="🧠 Enable ML-based anomaly detection"),
-    threat_monitoring: bool = typer.Option(True, "--threat-monitor", help="🛡️ Real-time threat monitoring"),
-    defi_monitoring: bool = typer.Option(True, "--defi-monitor", help="🏦 DeFi protocol monitoring"),
-    cross_chain_monitor: bool = typer.Option(False, "--cross-chain", help="🌉 Cross-chain monitoring"),
-    webhook_url: Optional[str] = typer.Option(None, "--webhook", help="🔗 Webhook URL for alerts"),
-    export_alerts: bool = typer.Option(True, "--export-alerts", help="💾 Export alert data")
-):
-    """👁️ Advanced real-time blockchain monitoring with ML-based anomaly detection."""
-    
-    print_enhanced_banner()
-    
-    try:
-        config = EnhancedConfigManager().load_config()
-        
-        # Parse addresses
-        address_list = [addr.strip() for addr in addresses[0].split(',')] if len(addresses) == 1 else addresses
-        
-        console.print(f"👁️ [bold blue]Monitoring {len(address_list)} addresses on {currency.upper()}[/]")
-        console.print(f"⏱️ Duration: {duration}s | 💰 Threshold: ${alert_threshold:,.2f}")
-        
-        # Initialize monitoring components
-        monitor = RealtimeTransactionMonitor(config)
-        ml_detector = PatternDetector(config) if ml_alerts else None
-        threat_monitor_service = MLThreatIntelligence(config) if threat_monitoring else None
-        
-        # Start monitoring
-        monitoring_result = asyncio.run(start_advanced_monitoring(
-            monitor, address_list, currency, duration, alert_threshold,
-            ml_detector, threat_monitor_service, webhook_url
-        ))
-        
-        # Display monitoring results
-        display_monitoring_dashboard(monitoring_result, export_alerts)
-        
-    except Exception as e:
-        console.print(f"❌ [bold red]Monitoring Error:[/] {str(e)}")
-        sys.exit(1)
-
-@app.command()
-def analyze_defi(
-    protocol: str = typer.Argument(..., help="🏦 DeFi protocol (uniswap, aave, compound, etc.)"),
-    address: Optional[str] = typer.Option(None, "--address", "-a", help="🎯 Specific address to analyze"),
-    time_range: int = typer.Option(7, "--days", "-d", help="📅 Analysis time range (days)"),
-    include_governance: bool = typer.Option(True, "--governance", help="🗳️ Include governance analysis"),
-    liquidity_analysis: bool = typer.Option(True, "--liquidity", help="💧 Liquidity pool analysis"),
-    yield_analysis: bool = typer.Option(True, "--yield", help="📈 Yield farming analysis"),
-    risk_assessment: bool = typer.Option(True, "--risk", help="⚠️ DeFi risk assessment")
-):
-    """🏦 Comprehensive DeFi protocol analysis and risk assessment."""
-    
-    print_enhanced_banner()
-    
-    try:
-        config = EnhancedConfigManager().load_config()
-        defi_analyzer = DeFiAnalyzer(config)
-        
-        console.print(f"🏦 [bold blue]Analyzing {protocol.upper()} Protocol[/]")
-        if address:
-            console.print(f"🎯 Target Address: {address}")
-        
-        # Perform DeFi analysis
-        with Progress(console=console) as progress:
-            task = progress.add_task(f"Analyzing {protocol}...", total=100)
-            
-            defi_result = asyncio.run(defi_analyzer.analyze_protocol(
-                protocol, address, time_range, include_governance,
-                liquidity_analysis, yield_analysis, risk_assessment,
-                progress, task
-            ))
-            
-            progress.update(task, completed=100)
-        
-        # Display DeFi analysis results
-        display_defi_analysis(defi_result)
-        
-    except Exception as e:
-        console.print(f"❌ [bold red]DeFi Analysis Error:[/] {str(e)}")
-        sys.exit(1)
-
-@app.command()
-def detect_patterns(
-    input_file: str = typer.Argument(..., help="📁 Input file (CSV/JSON) with transaction data"),
-    pattern_types: str = typer.Option("all", "--patterns", "-p", 
-                                    help="🔍 Pattern types (mixing, layering, structuring, all)"),
-    ml_model: str = typer.Option("ensemble", "--model", "-m", 
-                               help="🧠 ML model (lstm, rf, ensemble)"),
-    confidence_threshold: float = typer.Option(0.8, "--confidence", "-c", 
-                                             help="📊 Confidence threshold (0.0-1.0)"),
-    export_results: bool = typer.Option(True, "--export", "-e", help="💾 Export pattern results"),
-    visualize_patterns: bool = typer.Option(True, "--visualize", "-v", help="📈 Visualize detected patterns")
-):
-    """🔍 Advanced ML-based suspicious pattern detection in transaction data."""
-    
-    print_enhanced_banner()
-    
-    try:
-        config = EnhancedConfigManager().load_config()
-        pattern_detector = PatternDetector(config)
-        
-        console.print(f"🔍 [bold blue]Detecting patterns in {input_file}[/]")
-        console.print(f"🧠 Model: {ml_model} | 📊 Confidence: {confidence_threshold}")
-        
-        # Load and analyze data
-        with Progress(console=console) as progress:
-            task = progress.add_task("Detecting patterns...", total=100)
-            
-            pattern_results = asyncio.run(pattern_detector.detect_patterns_from_file(
-                input_file, pattern_types, ml_model, confidence_threshold,
-                progress, task
-            ))
-            
-            progress.update(task, completed=100)
-        
-        # Display pattern detection results
-        display_pattern_results(pattern_results, export_results, visualize_patterns)
-        
-    except Exception as e:
-        console.print(f"❌ [bold red]Pattern Detection Error:[/] {str(e)}")
-        sys.exit(1)
-
-@app.command()
-def cluster_addresses(
-    blockchain: str = typer.Argument(..., help="🔗 Blockchain to analyze"),
-    seed_addresses: List[str] = typer.Option(..., "--seeds", "-s", 
-                                           help="🌱 Seed addresses for clustering"),
-    clustering_method: str = typer.Option("heuristic", "--method", "-m",
-                                        help="📊 Clustering method (heuristic, ml, hybrid)"),
-    max_cluster_size: int = typer.Option(1000, "--max-size", help="📈 Maximum cluster size"),
-    confidence_threshold: float = typer.Option(0.7, "--confidence", help="📊 Confidence threshold"),
-    export_clusters: bool = typer.Option(True, "--export", help="💾 Export cluster data"),
-    visualize_clusters: bool = typer.Option(True, "--visualize", help="📈 Visualize clusters")
-):
-    """🔗 Advanced address clustering analysis using multiple methodologies."""
-    
-    print_enhanced_banner()
-    
-    try:
-        config = EnhancedConfigManager().load_config()
-        clustering_service = AddressClustering(config)
-        
-        console.print(f"🔗 [bold blue]Clustering addresses on {blockchain.upper()}[/]")
-        console.print(f"🌱 Seeds: {len(seed_addresses)} | 📊 Method: {clustering_method}")
-        
-        # Perform clustering analysis
-        with Progress(console=console) as progress:
-            task = progress.add_task("Clustering addresses...", total=100)
-            
-            cluster_results = asyncio.run(clustering_service.cluster_addresses(
-                blockchain, seed_addresses, clustering_method,
-                max_cluster_size, confidence_threshold, progress, task
-            ))
-            
-            progress.update(task, completed=100)
-        
-        # Display clustering results
-        display_clustering_results(cluster_results, export_clusters, visualize_clusters)
-        
-    except Exception as e:
-        console.print(f"❌ [bold red]Clustering Error:[/] {str(e)}")
-        sys.exit(1)
-
-# Helper Functions
-
-def create_analysis_panel(address: str, currency: str, max_hops: int, 
-                         depth: int, performance_mode: str) -> Panel:
-    """Create analysis parameters panel."""
-    content = f"""[bold cyan]🎯 Target:[/] {address}
-[bold cyan]🔗 Blockchain:[/] {currency.upper()}
-[bold cyan]🔄 Max Hops:[/] {max_hops}
-[bold cyan]📊 Depth:[/] {depth}
-[bold cyan]⚡ Mode:[/] {performance_mode}"""
-    
-    return Panel(content, title="Analysis Parameters", style="dim")
-
 async def perform_comprehensive_analysis(
-    tracer, address, currency, max_hops, depth,
-    risk_analyzer, pattern_detector, defi_analyzer,
-    cross_chain_tracker, threat_intel_service,
-    progress, task, performance_mode
+    tracer, address, currency, depth,
+    risk_analyzer, threat_intel_service,
+    progress, task
 ) -> Dict[str, Any]:
     """Perform comprehensive blockchain analysis."""
     
@@ -370,33 +314,15 @@ async def perform_comprehensive_analysis(
     try:
         # Step 1: Basic transaction tracing
         progress.update(task, description="🔍 Tracing transactions...", completed=20)
-        trace_data = await tracer.advanced_trace(address, currency, max_hops, depth)
+        trace_data = await tracer.advanced_trace(address, currency, 10, depth)
         result['trace_data'] = trace_data
         
         # Step 2: Risk analysis
-        progress.update(task, description="⚠️ Analyzing risk factors...", completed=40)
+        progress.update(task, description="⚠️ Analyzing risk factors...", completed=60)
         risk_data = await risk_analyzer.comprehensive_risk_analysis(trace_data)
         result['risk_analysis'] = risk_data
         
-        # Step 3: Pattern detection (if enabled)
-        if pattern_detector:
-            progress.update(task, description="🧠 Detecting suspicious patterns...", completed=60)
-            patterns = await pattern_detector.detect_patterns(trace_data)
-            result['patterns'] = patterns
-        
-        # Step 4: DeFi analysis (if enabled)
-        if defi_analyzer:
-            progress.update(task, description="🏦 Analyzing DeFi interactions...", completed=70)
-            defi_data = await defi_analyzer.analyze_address_defi(address, currency)
-            result['defi_analysis'] = defi_data
-        
-        # Step 5: Cross-chain tracking (if enabled)
-        if cross_chain_tracker:
-            progress.update(task, description="🌉 Cross-chain analysis...", completed=80)
-            cross_chain_data = await cross_chain_tracker.track_cross_chain(address)
-            result['cross_chain'] = cross_chain_data
-        
-        # Step 6: Threat intelligence
+        # Step 3: Threat intelligence
         if threat_intel_service:
             progress.update(task, description="🛡️ Threat intelligence check...", completed=90)
             threat_data = await threat_intel_service.comprehensive_threat_check(address)
@@ -408,144 +334,9 @@ async def perform_comprehensive_analysis(
         logger.exception(f"Error in comprehensive analysis: {e}")
         raise
 
-def display_comprehensive_results(result: Dict[str, Any], output_format: str, 
-                                export: bool, visualize: bool, config: dict):
-    """Display comprehensive analysis results."""
-    
-    if output_format == "interactive":
-        display_interactive_results(result)
-    elif output_format == "table":
-        display_table_results(result)
-    elif output_format == "json":
-        console.print(json.dumps(result, indent=2, default=str))
-    
-    if visualize:
-        visualizer = AdvancedVisualizer(config)
-        visualizer.create_comprehensive_visualization(result)
-    
-    if export:
-        reporter = ComprehensiveReporter(config)
-        report_path = reporter.generate_comprehensive_report(result)
-        console.print(f"📁 [bold green]Comprehensive report exported:[/] {report_path}")
-
-def display_interactive_results(result: Dict[str, Any]):
-    """Display interactive results with Rich components."""
-    
-    layout = Layout()
-    layout.split_column(
-        Layout(name="header", size=3),
-        Layout(name="body"),
-        Layout(name="footer", size=3)
-    )
-    
-    # Header with summary
-    trace_data = result.get('trace_data', {})
-    risk_data = result.get('risk_analysis', {})
-    
-    header_content = f"""[bold green]✅ Analysis Complete[/]
-[cyan]Transactions:[/] {len(trace_data.get('transactions', []))} | [cyan]Risk Score:[/] {risk_data.get('risk_score', 0):.2f}
-[cyan]Threat Level:[/] {risk_data.get('threat_level', 'Unknown')} | [cyan]Patterns:[/] {len(result.get('patterns', []))}"""
-    
-    layout["header"].update(Panel(header_content, style="bold"))
-    
-    # Body with detailed results
-    body_layout = Layout()
-    body_layout.split_row(
-        Layout(name="left"),
-        Layout(name="right")
-    )
-    
-    # Left side - Transaction details
-    if trace_data.get('transactions'):
-        tx_table = create_transaction_table(trace_data['transactions'][:10])  # Show top 10
-        body_layout["left"].update(Panel(tx_table, title="Recent Transactions"))
-    
-    # Right side - Risk and patterns
-    risk_content = create_risk_summary(risk_data, result.get('patterns', []))
-    body_layout["right"].update(Panel(risk_content, title="Risk Assessment"))
-    
-    layout["body"].update(body_layout)
-    
-    # Footer with actions
-    footer_content = "[dim]💡 Use --export to save detailed report | --visualize for graphs[/]"
-    layout["footer"].update(Panel(footer_content, style="dim"))
-    
-    console.print(layout)
-
-def create_transaction_table(transactions: List[Dict]) -> Table:
-    """Create a Rich table for transactions."""
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Hash", style="cyan", width=12)
-    table.add_column("From", style="green", width=10)
-    table.add_column("To", style="yellow", width=10)
-    table.add_column("Value", style="red", width=12)
-    table.add_column("Time", style="blue", width=15)
-    
-    for tx in transactions:
-        table.add_row(
-            tx.get('hash', '')[:10] + '...',
-            tx.get('from', '')[:8] + '...',
-            tx.get('to', '')[:8] + '...',
-            f"{tx.get('value', 0):.4f}",
-            str(tx.get('timestamp', ''))[:19]
-        )
-    
-    return table
-
-def create_risk_summary(risk_data: Dict, patterns: List) -> str:
-    """Create risk summary content."""
-    content = f"""[bold red]Risk Score:[/] {risk_data.get('risk_score', 0):.2f}/1.0
-[bold yellow]Threat Level:[/] {risk_data.get('threat_level', 'Unknown')}
-[bold cyan]Suspicious Patterns:[/] {len(patterns)}
-
-[bold green]Risk Factors:[/]
-"""
-    
-    for factor in risk_data.get('risk_factors', []):
-        content += f"• {factor}\n"
-    
-    if patterns:
-        content += "\n[bold red]Detected Patterns:[/]\n"
-        for pattern in patterns[:5]:  # Show top 5
-            content += f"• {pattern.get('type', 'Unknown')}: {pattern.get('confidence', 0):.2f}\n"
-    
-    return content
-
-async def start_advanced_monitoring(monitor, addresses, currency, duration, 
-                                  threshold, ml_detector, threat_monitor, webhook_url):
-    """Start advanced monitoring with ML detection."""
-    # Implementation would go here
-    return {"status": "completed", "alerts": [], "total_monitored": len(addresses)}
-
-def display_monitoring_dashboard(result: Dict, export_alerts: bool):
-    """Display monitoring dashboard."""
-    console.print(f"👁️ [bold green]Monitoring Complete[/]")
-    console.print(f"📊 Total Alerts: {len(result.get('alerts', []))}")
-    # Additional dashboard implementation
-
-def display_defi_analysis(result: Dict):
-    """Display DeFi analysis results."""
-    console.print(f"🏦 [bold green]DeFi Analysis Complete[/]")
-    # Implementation for DeFi results display
-
-def display_pattern_results(results: Dict, export: bool, visualize: bool):
-    """Display pattern detection results."""
-    console.print(f"🔍 [bold green]Pattern Detection Complete[/]")
-    # Implementation for pattern results display
-
-def display_clustering_results(results: Dict, export: bool, visualize: bool):
-    """Display clustering results."""
-    console.print(f"🔗 [bold green]Address Clustering Complete[/]")
-    # Implementation for clustering results display
-
-def display_table_results(result: Dict):
-    """Display results in table format."""
-    # Implementation for table display
-    pass
-
 @app.callback()
 def main():
-    """🔍 ChainAnalyzer v3.5 Pro - Advanced Multi-Blockchain Transaction Forensics Tool"""
+    """🛡️ ChainAnalyzer v3.5 Pro - Advanced Multi-Blockchain Transaction Forensics Suite"""
     pass
 
 if __name__ == "__main__":
