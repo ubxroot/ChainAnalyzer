@@ -1,0 +1,30 @@
+# Core Dependencies
+typer[all]>=0.9.0
+rich>=13.0.0
+requests>=2.30.0
+pyfiglet>=0.8.post1
+aiohttp>=3.8.0
+pandas>=2.0.0
+pydantic>=2.5.0
+
+# Blockchain APIs
+web3>=6.10.0
+bitcoin>=1.1.42
+solana>=0.30.0
+tronpy>=0.4.0
+
+# Machine Learning & Analysis (Python 3.13 compatible)
+scikit-learn>=1.3.0
+
+# Visualization
+networkx>=3.0
+matplotlib>=3.7.0
+plotly>=5.15.0
+seaborn>=0.12.0
+numpy>=1.24.0
+
+# Security & Utilities
+cryptography>=41.0.0
+psutil>=5.9.5
+reportlab>=4.0.0
+openpyxl>=3.1.0
