@@ -81,8 +81,8 @@ def print_enhanced_banner():
     console.print(Panel(info_content, style="dim"))
     console.print()
 
-def display_interactive_results(result: Dict[str, Any]):
-    """Display simplified, clear results without excessive boxes."""
+def display_clean_results(result: Dict[str, Any]):
+    """Display simplified, clean results without excessive boxes."""
     
     trace_data = result.get('trace_data', {})
     risk_data = result.get('risk_analysis', {})
@@ -226,6 +226,29 @@ def display_interactive_results(result: Dict[str, Any]):
     console.print("="*80, style="bold blue")
     console.print()
 
+def display_comprehensive_results(result: Dict[str, Any], output_format: str, 
+                                export: bool, visualize: bool, config: dict):
+    """Display comprehensive analysis results with clean format."""
+    
+    # Always use clean format regardless of output_format parameter
+    display_clean_results(result)
+    
+    if visualize:
+        try:
+            visualizer = AdvancedVisualizer(config)
+            filename = visualizer.create_comprehensive_visualization(result)
+            console.print(f"📊 Visualization saved as: [cyan]{filename}[/cyan]")
+        except Exception as e:
+            console.print(f"⚠️ Visualization generation failed: {str(e)}")
+    
+    if export:
+        try:
+            reporter = ComprehensiveReporter(config)
+            report_path = reporter.generate_comprehensive_report(result)
+            console.print(f"📁 [bold green]Comprehensive report exported:[/] {report_path}")
+        except Exception as e:
+            console.print(f"⚠️ Report export failed: {str(e)}")
+
 @app.command()
 def trace(
     target: str = typer.Argument(..., help="🎯 Address, transaction hash, or ENS name"),
@@ -233,12 +256,17 @@ def trace(
                                   help="🔗 Blockchain (ethereum, bitcoin, solana, polygon, bsc, etc.)"),
     depth: int = typer.Option(10, "--depth", "-d", help="📊 Analysis depth (1-50)"),
     intelligence: bool = typer.Option(True, "--intel", help="🧠 Enable AI threat intelligence"),
+    osint: bool = typer.Option(True, "--osint", help="🕵️ Enable OSINT collection"),
+    anonymous: bool = typer.Option(False, "--tor", help="🔒 Use Tor for anonymous analysis"),
+    maltego: bool = typer.Option(False, "--maltego", help="🌐 Generate Maltego transform"),
     export_format: str = typer.Option("json", "--export", "-e", 
-                                    help="📁 Export format (json, csv, pdf)"),
+                                    help="📁 Export format (json, csv, pdf, maltego, wireshark)"),
     output_dir: str = typer.Option("./reports", "--output", "-o", help="📂 Output directory"),
-    visualize: bool = typer.Option(True, "--visualize", help="📈 Generate visualizations")
+    real_time: bool = typer.Option(False, "--monitor", help="👁️ Enable real-time monitoring"),
+    profile: str = typer.Option("standard", "--profile", help="⚡ Analysis profile (quick, standard, deep, forensic)"),
+    visualize: bool = typer.Option(True, "--visualize", help="📈 Generate advanced visualizations")
 ):
-    """🔍 Advanced blockchain forensic analysis with clean, readable output."""
+    """🔍 Advanced blockchain forensic analysis with OSINT and threat intelligence."""
     
     print_enhanced_banner()
     
@@ -251,14 +279,15 @@ def trace(
         
         with perf_monitor.measure("total_analysis"):
             # Display analysis parameters
-            console.print(f"🎯 [bold blue]Target:[/] {target}")
-            console.print(f"🔗 [bold blue]Blockchain:[/] {blockchain.upper()}")
-            console.print(f"📊 [bold blue]Depth:[/] {depth}")
-            console.print()
+            analysis_panel = create_analysis_panel(target, blockchain, 10, depth, profile)
+            console.print(analysis_panel)
             
             # Initialize advanced services
             tracer = AdvancedMultiChainTracer(config, db_manager, cache_manager)
             risk_analyzer = AdvancedRiskAnalyzer(config)
+            pattern_detector = PatternDetector(config) if True else None
+            defi_analyzer = DeFiAnalyzer(config) if True else None
+            cross_chain_tracker = CrossChainTracker(config) if False else None
             threat_intel_service = MLThreatIntelligence(config) if intelligence else None
             
             # Perform comprehensive analysis
@@ -274,38 +303,48 @@ def trace(
                 trace_task = progress.add_task("🔍 Performing blockchain trace...", total=100)
                 
                 analysis_result = asyncio.run(perform_comprehensive_analysis(
-                    tracer, target, blockchain, depth,
-                    risk_analyzer, threat_intel_service,
-                    progress, trace_task
+                    tracer, target, blockchain, 10, depth,
+                    risk_analyzer, pattern_detector, defi_analyzer,
+                    cross_chain_tracker, threat_intel_service,
+                    progress, trace_task, profile
                 ))
                 
                 progress.update(trace_task, completed=100)
             
-            # Generate and display results
-            display_interactive_results(analysis_result)
-            
-            if visualize:
-                visualizer = AdvancedVisualizer(config)
-                filename = visualizer.create_comprehensive_visualization(analysis_result)
-                console.print(f"📊 Visualization saved as: [cyan]{filename}[/cyan]")
+            # Generate and display results with clean format
+            display_comprehensive_results(
+                analysis_result, "clean", False, visualize, config
+            )
             
             # Performance summary
             try:
                 perf_summary = perf_monitor.get_summary()
                 total_time = perf_summary.get('total_analysis', 0.0)
-                console.print(f"⚡ Analysis completed in {total_time:.2f}s")
+                console.print(f"\n⚡ Analysis completed in {total_time:.2f}s")
             except Exception:
-                console.print(f"⚡ Analysis completed successfully")
-                
+                console.print(f"\n⚡ Analysis completed successfully")
+            
     except Exception as e:
         console.print(f"❌ [bold red]Critical Error:[/] {str(e)}", style="bold red")
         logger.exception("Critical error during trace analysis")
         sys.exit(1)
 
+def create_analysis_panel(address: str, currency: str, max_hops: int, 
+                         depth: int, performance_mode: str) -> Panel:
+    """Create analysis parameters panel."""
+    content = f"""[bold cyan]🎯 Target:[/] {address}
+[bold cyan]🔗 Blockchain:[/] {currency.upper()}
+[bold cyan]🔄 Max Hops:[/] {max_hops}
+[bold cyan]📊 Depth:[/] {depth}
+[bold cyan]⚡ Mode:[/] {performance_mode}"""
+    
+    return Panel(content, title="Analysis Parameters", style="dim")
+
 async def perform_comprehensive_analysis(
-    tracer, address, currency, depth,
-    risk_analyzer, threat_intel_service,
-    progress, task
+    tracer, address, currency, max_hops, depth,
+    risk_analyzer, pattern_detector, defi_analyzer,
+    cross_chain_tracker, threat_intel_service,
+    progress, task, performance_mode
 ) -> Dict[str, Any]:
     """Perform comprehensive blockchain analysis."""
     
@@ -314,15 +353,33 @@ async def perform_comprehensive_analysis(
     try:
         # Step 1: Basic transaction tracing
         progress.update(task, description="🔍 Tracing transactions...", completed=20)
-        trace_data = await tracer.advanced_trace(address, currency, 10, depth)
+        trace_data = await tracer.advanced_trace(address, currency, max_hops, depth)
         result['trace_data'] = trace_data
         
         # Step 2: Risk analysis
-        progress.update(task, description="⚠️ Analyzing risk factors...", completed=60)
+        progress.update(task, description="⚠️ Analyzing risk factors...", completed=40)
         risk_data = await risk_analyzer.comprehensive_risk_analysis(trace_data)
         result['risk_analysis'] = risk_data
         
-        # Step 3: Threat intelligence
+        # Step 3: Pattern detection (if enabled)
+        if pattern_detector:
+            progress.update(task, description="🧠 Detecting suspicious patterns...", completed=60)
+            patterns = await pattern_detector.detect_patterns(trace_data)
+            result['patterns'] = patterns
+        
+        # Step 4: DeFi analysis (if enabled)
+        if defi_analyzer:
+            progress.update(task, description="🏦 Analyzing DeFi interactions...", completed=70)
+            defi_data = await defi_analyzer.analyze_address_defi(address, currency)
+            result['defi_analysis'] = defi_data
+        
+        # Step 5: Cross-chain tracking (if enabled)
+        if cross_chain_tracker:
+            progress.update(task, description="🌉 Cross-chain analysis...", completed=80)
+            cross_chain_data = await cross_chain_tracker.track_cross_chain(address)
+            result['cross_chain'] = cross_chain_data
+        
+        # Step 6: Threat intelligence
         if threat_intel_service:
             progress.update(task, description="🛡️ Threat intelligence check...", completed=90)
             threat_data = await threat_intel_service.comprehensive_threat_check(address)
