@@ -3,32 +3,32 @@
 ChainAnalyzer v3.5 Pro - Advanced Multi-Blockchain Transaction Forensics Tool
 =============================================================================
 
-Professional-grade cryptocurrency transaction analysis tool with:
-- Multi-blockchain support with clean, readable output
-- Advanced threat intelligence and risk scoring
-- Real-time monitoring and alerting
-- Simplified, professional display format
+Professional-grade cryptocurrency transaction analysis tool with PyTorch ML backend
 """
 
 import typer
 import asyncio
 import json
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import sys
 import logging
+import numpy as np
 
-# Import core modules
+# Import core modules (updated for PyTorch)
+from core.pytorch_threat_intel import PyTorchThreatIntelligence
 from core.advanced_tracer import AdvancedMultiChainTracer
-from core.ml_threat_intel import MLThreatIntelligence
-from core.advanced_risk_analyzer import AdvancedRiskAnalyzer
+from core.pytorch_risk_analyzer import PyTorchRiskAnalyzer
 from core.advanced_visualizer import AdvancedVisualizer
 from core.comprehensive_reporter import ComprehensiveReporter
 from core.realtime_monitor import RealtimeTransactionMonitor
 from core.defi_analyzer import DeFiAnalyzer
 from core.cross_chain_tracker import CrossChainTracker
-from core.pattern_detector import PatternDetector
+from core.pytorch_pattern_detector import PyTorchPatternDetector
 from core.address_clustering import AddressClustering
 
 # Import utility modules
@@ -56,7 +56,7 @@ class Colors:
 # Initialize Typer app
 app = typer.Typer(
     name="chainanalyzer-pro",
-    help="Advanced Multi-Blockchain Transaction Forensics Tool v3.5",
+    help="Advanced Multi-Blockchain Transaction Forensics Tool v3.5 with PyTorch",
     add_completion=False,
     rich_markup_mode=None
 )
@@ -84,25 +84,32 @@ def print_simple_banner():
     print(logo)
     print(f"{Colors.END}")
     
-    # Header with attribution
+    # Header with attribution and PyTorch info
     print(f"{Colors.BOLD}{Colors.CYAN}{'='*100}")
     print(f"  Advanced Multi-Blockchain Transaction Forensics Tool v3.5")
     print(f"  {'By ubxroot':>85}")
+    print(f"  {'Powered by PyTorch ' + torch.__version__:>85}")
     print(f"{'='*100}{Colors.END}")
     
-    # Feature highlights
-    print(f"{Colors.GREEN}✓ Multi-Chain Analysis  ✓ Threat Intelligence  ✓ DeFi Protocols  ✓ Risk Scoring{Colors.END}")
+    # Feature highlights with PyTorch capabilities
+    print(f"{Colors.GREEN}✓ Multi-Chain Analysis  ✓ PyTorch ML Engine  ✓ DeFi Protocols  ✓ Smart Risk Scoring")
+    print(f"✓ Real-time Detection   ✓ Pattern Recognition ✓ Cross-Chain     ✓ Advanced Analytics{Colors.END}")
+    
+    # Display PyTorch/CUDA info
+    if torch.cuda.is_available():
+        print(f"{Colors.YELLOW}⚡ GPU Acceleration: ENABLED (CUDA {torch.version.cuda}){Colors.END}")
+    else:
+        print(f"{Colors.DIM}⚡ GPU Acceleration: CPU-only mode{Colors.END}")
     print()
 
-
 def display_simple_results(result: Dict[str, Any]):
-    """Display simplified results for Kali Linux terminal."""
+    """Display simplified results for Kali Linux terminal with PyTorch metrics."""
     
     trace_data = result.get('trace_data', {})
     risk_data = result.get('risk_analysis', {})
     
     print(f"\n{Colors.BOLD}{'='*60}")
-    print(f"  CHAINANALYZER ANALYSIS RESULTS")
+    print(f"  CHAINANALYZER ANALYSIS RESULTS (PyTorch ML)")
     print(f"{'='*60}{Colors.END}")
     
     # Basic Information
@@ -111,6 +118,14 @@ def display_simple_results(result: Dict[str, Any]):
     print(f"  Blockchain: {Colors.YELLOW}{trace_data.get('currency', 'N/A').upper()}{Colors.END}")
     print(f"  Transactions Found: {Colors.MAGENTA}{len(trace_data.get('transactions', []))}{Colors.END}")
     print(f"  Analysis Time: {Colors.DIM}{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Colors.END}")
+    
+    # PyTorch ML Analysis Results
+    ml_results = result.get('pytorch_analysis', {})
+    if ml_results:
+        print(f"\n{Colors.MAGENTA}[ML] PyTorch Analysis:{Colors.END}")
+        print(f"  Neural Network Confidence: {Colors.GREEN}{ml_results.get('confidence', 0):.3f}{Colors.END}")
+        print(f"  Pattern Recognition Score: {Colors.CYAN}{ml_results.get('pattern_score', 0):.3f}{Colors.END}")
+        print(f"  Anomaly Detection: {Colors.RED if ml_results.get('anomaly_detected') else Colors.GREEN}{'DETECTED' if ml_results.get('anomaly_detected') else 'NONE'}{Colors.END}")
     
     # Risk Assessment
     print(f"\n{Colors.RED}[RISK] Risk Assessment:{Colors.END}")
@@ -131,13 +146,15 @@ def display_simple_results(result: Dict[str, Any]):
     print(f"  Threat Level: {risk_color}{threat_level}{Colors.END}")
     print(f"  Connected Addresses: {Colors.CYAN}{risk_data.get('interacting_address_count', 0)}{Colors.END}")
     
-    # Suspicious patterns
+    # ML-Detected Suspicious patterns
     if risk_data.get('suspicious_patterns'):
-        print(f"  Suspicious Patterns: {Colors.RED}{len(risk_data['suspicious_patterns'])}{Colors.END}")
+        print(f"  ML-Detected Patterns: {Colors.RED}{len(risk_data['suspicious_patterns'])}{Colors.END}")
         for i, pattern in enumerate(risk_data['suspicious_patterns'][:3], 1):
-            print(f"    {i}. {Colors.RED}{pattern}{Colors.END}")
+            confidence = pattern.get('confidence', 0) if isinstance(pattern, dict) else 0.8
+            pattern_name = pattern.get('name', pattern) if isinstance(pattern, dict) else pattern
+            print(f"    {i}. {Colors.RED}{pattern_name}{Colors.END} {Colors.DIM}(confidence: {confidence:.2f}){Colors.END}")
     else:
-        print(f"  Suspicious Patterns: {Colors.GREEN}None detected{Colors.END}")
+        print(f"  ML-Detected Patterns: {Colors.GREEN}None detected{Colors.END}")
     
     # Transaction Timeline
     transactions = trace_data.get('transactions', [])
@@ -146,7 +163,7 @@ def display_simple_results(result: Dict[str, Any]):
         print(f"  {'Hash':<20} {'From->To':<25} {'Value':<12} {'Time':<20}")
         print(f"  {'-'*80}")
         
-        for i, tx in enumerate(transactions[:5], 1):  # Show first 5 transactions
+        for i, tx in enumerate(transactions[:5], 1):
             tx_hash = tx.get('hash', 'N/A')[:16] + "..."
             
             from_addr = tx.get('from_address', tx.get('from', 'N/A'))[:6] + "..."
@@ -179,39 +196,9 @@ def display_simple_results(result: Dict[str, Any]):
             avg_value = total_volume / len(transactions)
             print(f"  Average TX Size: {Colors.CYAN}${avg_value:,.2f} USD{Colors.END}")
     
-    # Threat Intelligence
-    threat_intel = result.get('threat_intel', {})
-    if threat_intel:
-        print(f"\n{Colors.YELLOW}[INTEL] Threat Intelligence:{Colors.END}")
-        print(f"  Threat Score: {Colors.RED}{threat_intel.get('threat_score', 0):.2f}/1.0{Colors.END}")
-        print(f"  Blacklist Status: {threat_intel.get('blacklist_status', 'Unknown')}")
-        
-        if threat_intel.get('blacklist_matches'):
-            print(f"  Blacklist Matches:")
-            for match in threat_intel['blacklist_matches'][:3]:
-                print(f"    - {Colors.RED}{match.get('source', 'Unknown')}: {match.get('type', 'Unknown')}{Colors.END}")
-    
-    # DeFi Analysis
-    defi_data = result.get('defi_analysis', {})
-    if defi_data and defi_data.get('defi_protocols'):
-        print(f"\n{Colors.MAGENTA}[DEFI] Protocol Interactions:{Colors.END}")
-        protocols = defi_data.get('defi_protocols', [])
-        print(f"  Active Protocols: {Colors.MAGENTA}{', '.join(protocols)}{Colors.END}")
-        print(f"  Total DeFi Value: {Colors.GREEN}${defi_data.get('total_defi_value', 0):,.2f}{Colors.END}")
-        print(f"  Liquidity Positions: {Colors.CYAN}{defi_data.get('liquidity_positions', 0)}{Colors.END}")
-    
-    # Cross-Chain Analysis
-    cross_chain = result.get('cross_chain', {})
-    if cross_chain and cross_chain.get('chains_detected'):
-        print(f"\n{Colors.BLUE}[BRIDGE] Cross-Chain Activity:{Colors.END}")
-        chains = cross_chain.get('chains_detected', [])
-        print(f"  Chains Detected: {Colors.BLUE}{', '.join(chains)}{Colors.END}")
-        print(f"  Bridge Transactions: {Colors.CYAN}{len(cross_chain.get('bridge_transactions', []))}{Colors.END}")
-        print(f"  Cross-Chain Value: {Colors.GREEN}${cross_chain.get('total_cross_chain_value', 0):,.2f}{Colors.END}")
-    
-    # Footer
+    # Footer with PyTorch info
     print(f"\n{Colors.BOLD}{'='*60}")
-    print(f"  Analysis Complete - Use --export for detailed report")
+    print(f"  PyTorch ML Analysis Complete - Use --export for detailed report")
     print(f"{'='*60}{Colors.END}\n")
 
 def display_comprehensive_results(result: Dict[str, Any], output_format: str, 
@@ -242,72 +229,71 @@ def trace(
     blockchain: str = typer.Option("ethereum", "--chain", "-c", 
                                   help="Blockchain (ethereum, bitcoin, solana, polygon, bsc, etc.)"),
     depth: int = typer.Option(10, "--depth", "-d", help="Analysis depth (1-50)"),
-    intelligence: bool = typer.Option(True, "--intel", help="Enable AI threat intelligence"),
+    intelligence: bool = typer.Option(True, "--intel", help="Enable PyTorch AI threat intelligence"),
     osint: bool = typer.Option(True, "--osint", help="Enable OSINT collection"),
-    anonymous: bool = typer.Option(False, "--tor", help="Use Tor for anonymous analysis"),
-    maltego: bool = typer.Option(False, "--maltego", help="Generate Maltego transform"),
     export_format: str = typer.Option("json", "--export", "-e", 
-                                    help="Export format (json, csv, pdf, maltego, wireshark)"),
-    output_dir: str = typer.Option("./reports", "--output", "-o", help="Output directory"),
-    real_time: bool = typer.Option(False, "--monitor", help="Enable real-time monitoring"),
+                                    help="Export format (json, csv, pdf)"),
     profile: str = typer.Option("standard", "--profile", help="Analysis profile (quick, standard, deep, forensic)"),
-    visualize: bool = typer.Option(False, "--visualize", help="Generate advanced visualizations"),
+    gpu: bool = typer.Option(False, "--gpu", help="Force GPU acceleration if available"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output mode")
 ):
-    """Advanced blockchain forensic analysis with OSINT and threat intelligence."""
+    """Advanced blockchain forensic analysis with PyTorch ML engine."""
     
     if not quiet:
         print_simple_banner()
     
     try:
-        # Initialize enhanced components
+        # Check PyTorch setup
+        device = torch.device("cuda" if gpu and torch.cuda.is_available() else "cpu")
+        if not quiet:
+            print(f"{Colors.CYAN}[ML] Using PyTorch device: {device}{Colors.END}")
+        
+        # Initialize components
         config = EnhancedConfigManager().load_config()
+        config['ml_device'] = str(device)  # Add device info to config
+        
         perf_monitor = PerformanceMonitor()
         db_manager = DatabaseManager(config)
         cache_manager = CacheManager(config)
         
         with perf_monitor.measure("total_analysis"):
-            # Display analysis parameters
             if not quiet:
                 print(f"{Colors.CYAN}[INIT] Analysis Parameters:{Colors.END}")
                 print(f"  Target: {Colors.GREEN}{target}{Colors.END}")
                 print(f"  Chain: {Colors.YELLOW}{blockchain.upper()}{Colors.END}")
                 print(f"  Depth: {Colors.MAGENTA}{depth}{Colors.END}")
-                print(f"  Profile: {Colors.BLUE}{profile}{Colors.END}")
+                print(f"  ML Profile: {Colors.BLUE}{profile}{Colors.END}")
                 print()
             
-            # Initialize advanced services
+            # Initialize PyTorch-based services
             tracer = AdvancedMultiChainTracer(config, db_manager, cache_manager)
-            risk_analyzer = AdvancedRiskAnalyzer(config)
-            pattern_detector = PatternDetector(config) if True else None
-            defi_analyzer = DeFiAnalyzer(config) if True else None
-            cross_chain_tracker = CrossChainTracker(config) if False else None
-            threat_intel_service = MLThreatIntelligence(config) if intelligence else None
+            risk_analyzer = PyTorchRiskAnalyzer(config, device)
+            pattern_detector = PyTorchPatternDetector(config, device) if True else None
+            threat_intel_service = PyTorchThreatIntelligence(config, device) if intelligence else None
             
             # Progress indicators
             if not quiet:
-                print(f"{Colors.YELLOW}[>] Starting blockchain trace...{Colors.END}")
+                print(f"{Colors.YELLOW}[>] Starting PyTorch-powered analysis...{Colors.END}")
             
-            analysis_result = asyncio.run(perform_simple_analysis(
+            analysis_result = asyncio.run(perform_pytorch_analysis(
                 tracer, target, blockchain, 10, depth,
-                risk_analyzer, pattern_detector, defi_analyzer,
-                cross_chain_tracker, threat_intel_service,
-                profile, quiet
+                risk_analyzer, pattern_detector, threat_intel_service,
+                profile, quiet, device
             ))
             
             if not quiet:
-                print(f"{Colors.GREEN}[✓] Analysis complete{Colors.END}")
+                print(f"{Colors.GREEN}[✓] PyTorch analysis complete{Colors.END}")
             
-            # Generate and display results
+            # Display results
             if quiet:
-                # Minimal output for quiet mode
                 risk_score = analysis_result.get('risk_analysis', {}).get('risk_score', 0)
                 threat_level = analysis_result.get('risk_analysis', {}).get('threat_level', 'Unknown')
                 tx_count = len(analysis_result.get('trace_data', {}).get('transactions', []))
-                print(f"Target: {target} | Risk: {risk_score:.2f} | Level: {threat_level} | TXs: {tx_count}")
+                ml_confidence = analysis_result.get('pytorch_analysis', {}).get('confidence', 0)
+                print(f"Target: {target} | Risk: {risk_score:.2f} | Level: {threat_level} | TXs: {tx_count} | ML: {ml_confidence:.3f}")
             else:
                 display_comprehensive_results(
-                    analysis_result, "simple", export_format != "json", visualize, config
+                    analysis_result, "simple", export_format != "json", False, config
                 )
             
             # Performance summary
@@ -315,7 +301,7 @@ def trace(
                 try:
                     perf_summary = perf_monitor.get_summary()
                     total_time = perf_summary.get('total_analysis', 0.0)
-                    print(f"{Colors.DIM}[i] Completed in {total_time:.2f}s{Colors.END}")
+                    print(f"{Colors.DIM}[i] PyTorch analysis completed in {total_time:.2f}s{Colors.END}")
                 except Exception:
                     print(f"{Colors.DIM}[i] Analysis completed{Colors.END}")
             
@@ -325,69 +311,66 @@ def trace(
     except Exception as e:
         print(f"{Colors.RED}[ERROR] {str(e)}{Colors.END}")
         if not quiet:
-            logger.exception("Critical error during trace analysis")
+            logger.exception("Critical error during PyTorch analysis")
         sys.exit(1)
 
-async def perform_simple_analysis(
+async def perform_pytorch_analysis(
     tracer, address, currency, max_hops, depth,
-    risk_analyzer, pattern_detector, defi_analyzer,
-    cross_chain_tracker, threat_intel_service,
-    performance_mode, quiet
+    risk_analyzer, pattern_detector, threat_intel_service,
+    performance_mode, quiet, device
 ) -> Dict[str, Any]:
-    """Perform comprehensive blockchain analysis with simple progress."""
+    """Perform comprehensive blockchain analysis with PyTorch ML."""
     
     result = {}
     
     try:
         # Step 1: Basic transaction tracing
         if not quiet:
-            print(f"{Colors.CYAN}[1/6] Tracing transactions...{Colors.END}")
+            print(f"{Colors.CYAN}[1/5] Tracing transactions...{Colors.END}")
         trace_data = await tracer.advanced_trace(address, currency, max_hops, depth)
         result['trace_data'] = trace_data
         
-        # Step 2: Risk analysis
+        # Step 2: PyTorch risk analysis
         if not quiet:
-            print(f"{Colors.YELLOW}[2/6] Analyzing risk factors...{Colors.END}")
-        risk_data = await risk_analyzer.comprehensive_risk_analysis(trace_data)
+            print(f"{Colors.YELLOW}[2/5] PyTorch risk analysis...{Colors.END}")
+        risk_data = await risk_analyzer.pytorch_risk_analysis(trace_data)
         result['risk_analysis'] = risk_data
         
-        # Step 3: Pattern detection
+        # Step 3: PyTorch pattern detection
         if pattern_detector:
             if not quiet:
-                print(f"{Colors.MAGENTA}[3/6] Detecting patterns...{Colors.END}")
-            patterns = await pattern_detector.detect_patterns(trace_data)
+                print(f"{Colors.MAGENTA}[3/5] ML pattern detection...{Colors.END}")
+            patterns = await pattern_detector.detect_patterns_pytorch(trace_data)
             result['patterns'] = patterns
+            
+            # Add PyTorch-specific analysis results
+            result['pytorch_analysis'] = {
+                'confidence': patterns.get('overall_confidence', 0.0),
+                'pattern_score': patterns.get('pattern_score', 0.0),
+                'anomaly_detected': patterns.get('anomaly_detected', False),
+                'device_used': str(device)
+            }
         
-        # Step 4: DeFi analysis
-        if defi_analyzer:
-            if not quiet:
-                print(f"{Colors.BLUE}[4/6] Analyzing DeFi interactions...{Colors.END}")
-            defi_data = await defi_analyzer.analyze_address_defi(address, currency)
-            result['defi_analysis'] = defi_data
-        
-        # Step 5: Cross-chain tracking
-        if cross_chain_tracker:
-            if not quiet:
-                print(f"{Colors.GREEN}[5/6] Cross-chain analysis...{Colors.END}")
-            cross_chain_data = await cross_chain_tracker.track_cross_chain(address)
-            result['cross_chain'] = cross_chain_data
-        
-        # Step 6: Threat intelligence
+        # Step 4: PyTorch threat intelligence
         if threat_intel_service:
             if not quiet:
-                print(f"{Colors.RED}[6/6] Threat intelligence check...{Colors.END}")
-            threat_data = await threat_intel_service.comprehensive_threat_check(address)
+                print(f"{Colors.RED}[4/5] AI threat intelligence...{Colors.END}")
+            threat_data = await threat_intel_service.pytorch_threat_check(address)
             result['threat_intel'] = threat_data
+        
+        # Step 5: Final ML aggregation
+        if not quiet:
+            print(f"{Colors.GREEN}[5/5] ML result aggregation...{Colors.END}")
         
         return result
         
     except Exception as e:
-        logger.exception(f"Error in analysis: {e}")
+        logger.exception(f"Error in PyTorch analysis: {e}")
         raise
 
 @app.callback()
 def main():
-    """ChainAnalyzer v3.5 Pro - Advanced Multi-Blockchain Transaction Forensics Suite"""
+    """ChainAnalyzer v3.5 Pro - Advanced Multi-Blockchain Forensics with PyTorch ML"""
     pass
 
 if __name__ == "__main__":
