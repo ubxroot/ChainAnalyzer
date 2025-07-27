@@ -62,7 +62,7 @@ cd ChainAnalyzer
 pip install -r requirements.txt
 
 # Run the tool
-python chain_analyzer.py --help
+python3 chain_analyzer.py --help
 ```
 
 ### Manual Installation
@@ -80,10 +80,14 @@ pip install reportlab openpyxl          # For PDF/Excel export
 ### Basic Transaction Tracing
 ```bash
 # Trace an Ethereum address
-python chain_analyzer.py trace --currency ethereum 0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6
+python3 chain_analyzer.py trace [address] --chain ethereum
+
+# Or if alias is working
+chainanalyzer trace [address] --chain ethereum
+
 
 # Trace a Bitcoin address
-python chain_analyzer.py trace --currency bitcoin 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
+python3 chain_analyzer.py trace [address] --chain bitcoin
 
 # Trace with custom parameters
 python chain_analyzer.py trace \
